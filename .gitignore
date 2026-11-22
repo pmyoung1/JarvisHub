@@ -1,0 +1,34 @@
+# Runtime / local
+/data/
+/config.json
+/certs/*.pem
+/certs/*.crt
+/certs/*.key
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*~
+.idea/
+.vscode/
+
+# Test leftovers
+/tmp-*
+.pytest_cache/
+.coverage
+htmlcov/

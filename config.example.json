@@ -1,0 +1,19 @@
+{
+  "hub_name": "Jarvis",
+  "host": "0.0.0.0",
+  "port": 8765,
+  "data_dir": "data",
+  "media_paths": [
+    "D:\\Movies",
+    "E:\\Media\\Films"
+  ],
+  "auth_token": "",
+  "wake_word": "jarvis",
+  "log_max_bytes": 1048576,
+  "log_backup_count": 5,
+  "ssl": {
+    "enabled": false,
+    "certfile": "certs/cert.pem",
+    "keyfile": "certs/key.pem"
+  }
+}

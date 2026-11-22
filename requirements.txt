@@ -1,0 +1,10 @@
+# Jarvis Hub — Phase 1
+# Core function uses the Python 3.10+ standard library only
+# (http.server, json, sqlite3, pathlib, logging, xml, difflib, ssl, ...).
+#
+# No third-party packages are required to run the hub, the dashboard,
+# the media indexer, or the unit tests.
+#
+# Optional (not required):
+#   cryptography   # only if you prefer it over OpenSSL/PowerShell for
+#                  # generating a self-signed cert for microphone access
