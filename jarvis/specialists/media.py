@@ -32,9 +32,17 @@ class MediaSpecialist(Specialist):
     name = "media"
     priority = 20
 
-    def __init__(self, index: Any | None = None, index_factory: Callable[[], Any] | None = None) -> None:
+    def __init__(
+        self,
+        index: Any | None = None,
+        index_factory: Callable[[], Any] | None = None,
+        tv: Any | None = None,
+        stream_url_factory: Callable[..., str | None] | None = None,
+    ) -> None:
         self._index = index
         self._index_factory = index_factory
+        self.tv = tv
+        self.stream_url_factory = stream_url_factory
 
     @property
     def index(self) -> Any:
@@ -47,12 +55,12 @@ class MediaSpecialist(Specialist):
         return bool(_LIST.search(text) or _FIND.search(text) or _PLAY.search(text))
 
     def handle(self, text: str, context: dict[str, Any]) -> dict[str, Any]:
-        del context
+        context = context or {}
         if _LIST.search(text):
             return self._list()
         play = _PLAY.search(text)
         if play:
-            return self._play(play.group(3).strip())
+            return self._play(play.group(3).strip(), context)
         find = _FIND.search(text)
         if find:
             return self._find(find.group(3).strip())
@@ -113,7 +121,8 @@ class MediaSpecialist(Specialist):
             "data": {"items": items, "query": query},
         }
 
-    def _play(self, rest: str) -> dict[str, Any]:
+    def _play(self, rest: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        context = context or {}
         on_tv = bool(_ON_TV.search(rest))
         title = _ON_TV.sub("", rest).strip()
         title = _clean_query(title)
@@ -140,30 +149,63 @@ class MediaSpecialist(Specialist):
                 "data": {"action": "would_play", "target": target, "on_tv": on_tv, "media": None, "query": title},
             }
 
-        # ------------------------------------------------------------------
-        # TODO(phase-2): Attach samsung-tv-root TV control here.
-        # When integrated, this is the hook that would push the resolved
-        # file path (match["path"]) to the rooted Samsung QN75QN800D
-        # (Tizen) and start playback. Do not implement in phase 1.
-        # The returned action stays "would_play" until that controller
-        # is wired; do not stream video from this hub either.
-        # ------------------------------------------------------------------
-        would = (
-            f"I would play {_label(match)} on the TV "
-            f"(file: {match.get('path')}). "
-            "TV playback control is not wired yet — that's a phase 2 hook."
-        )
-        return {
-            "reply": would,
-            "intent": "media.play",
-            "data": {
+        stream_url = None
+        if self.stream_url_factory is not None:
+            try:
+                stream_url = self.stream_url_factory(match, context)
+            except Exception as exc:  # noqa: BLE001
+                stream_url = None
+                context = dict(context)
+                context["stream_url_error"] = str(exc)
+
+        tv = self.tv
+        if tv is None:
+            result = {
+                "ok": True,
                 "action": "would_play",
-                "target": target,
-                "on_tv": on_tv,
-                "media": match,
-                "query": title,
-            },
+                "url": stream_url,
+                "path": match.get("path"),
+                "title": match.get("title"),
+                "message": "No TV controller is configured.",
+            }
+        else:
+            if stream_url and hasattr(tv, "play_url"):
+                result = tv.play_url(stream_url, title=_label(match))
+            elif hasattr(tv, "play_path"):
+                result = tv.play_path(str(match.get("path") or ""), title=_label(match))
+            else:
+                result = {"ok": False, "action": "would_play", "error": "TV controller is missing play methods"}
+
+        action = str((result or {}).get("action") or "would_play")
+        if action == "playing":
+            reply = f"Playing {_label(match)} on the TV."
+        else:
+            extra = ""
+            if stream_url:
+                extra = " A stream URL is ready for the TV."
+            msg = (result or {}).get("message") or ""
+            reply = (
+                f"I would play {_label(match)} on the TV "
+                f"(file: {match.get('path')}).{extra}"
+            )
+            if msg and "No TV controller" not in str(msg):
+                reply = f"{reply} {msg}"
+
+        data = {
+            "action": action,
+            "target": target,
+            "on_tv": on_tv,
+            "media": match,
+            "query": title,
+            "stream_url": stream_url,
+            "controller": (result or {}).get("controller"),
         }
+        if result:
+            if result.get("error"):
+                data["error"] = result["error"]
+            if result.get("message"):
+                data["message"] = result["message"]
+        return {"reply": reply, "intent": "media.play", "data": data}
 
 
 def _label(item: dict[str, Any]) -> str:

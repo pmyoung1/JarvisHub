@@ -115,6 +115,24 @@ class MediaIndex:
             return None
         return None
 
+    def file_path_for(self, media_id: int) -> Path | None:
+        """Return the indexed video path only if that exact file still exists."""
+        with self._lock:
+            conn = self._connect()
+            try:
+                row = conn.execute("SELECT path FROM media WHERE id = ?", (media_id,)).fetchone()
+            finally:
+                conn.close()
+        if not row or not row["path"]:
+            return None
+        path = Path(row["path"])
+        try:
+            if path.is_file():
+                return path
+        except OSError:
+            return None
+        return None
+
     def search(self, query: str = "", limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         limit = max(1, min(int(limit or 50), 200))
         offset = max(0, int(offset or 0))

@@ -1,4 +1,4 @@
-"""Jarvis Hub — a local-network household AI service (phase 1)."""
+"""Jarvis Hub — a local-network household AI service (phase 2)."""
 
-__version__ = "0.1.0"
-__phase__ = 1
+__version__ = "0.2.0"
+__phase__ = 2

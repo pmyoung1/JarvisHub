@@ -62,19 +62,25 @@ class Router:
         }
 
 
-def build_default_router(media_index: Any | None = None) -> Router:
-    """Phase 1 default set. Future specialists register here.
-
-    Planned (not implemented):
-      - Home automation specialist  — do NOT add Home Assistant / MQTT in phase 1
-      - Calendar specialist
-      - GrokSpecialist (present, disabled)
-      - Richer media / TV-root playback specialist
-    """
+def build_default_router(
+    media_index: Any | None = None,
+    *,
+    grok: Any | None = None,
+    tv: Any | None = None,
+    stream_url_factory: Any | None = None,
+    grok_kwargs: dict[str, Any] | None = None,
+) -> Router:
+    """Default specialist set. Grok stays disabled when no API key is set."""
+    media = MediaSpecialist(index=media_index, tv=tv, stream_url_factory=stream_url_factory)
+    grok_specialist = grok if grok is not None else GrokSpecialist.from_config(
+        (grok_kwargs or {}).get("config") if grok_kwargs and "config" in grok_kwargs else None,
+        media_index=media_index,
+        **{k: v for k, v in (grok_kwargs or {}).items() if k != "config"},
+    )
     return Router(
         [
             CoreSpecialist(),
-            MediaSpecialist(index=media_index),
-            GrokSpecialist(),  # disabled placeholder
+            media,
+            grok_specialist,
         ]
     )
