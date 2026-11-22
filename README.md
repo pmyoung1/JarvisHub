@@ -264,6 +264,7 @@ python3 -m jarvis.server
 - [Status](docs/STATUS.md) — what phase 1 shipped vs. what phase 2 should
   cover, plus known limitations.
 - [Phase 2 design](docs/PHASE2_DESIGN.md) — wake word, talkback, Grok API, TV playback, clients, transfers, and security.
+- [Phase 3 design](docs/PHASE3_DESIGN.md) — Samsung TV power, HDMI inputs, and Wake-on-LAN via samsungtvws (no root).
 
 ## License
 

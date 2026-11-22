@@ -75,6 +75,34 @@ milestones live in [PHASE2_DESIGN.md](PHASE2_DESIGN.md). Summary:
 9. Echo Show 15 and Fire TV thin clients.
 10. Per-device tokens and optional LAN HTTPS hardening.
 
+## Phase 3 scope
+
+Local, no-root Samsung TV control for the QN75QN800DFXZA (power on/off
+and HDMI / named inputs) using the samsungtvws WebSocket remote. This
+pairs with the phase 2 `samsung-tv-root` hook, which remains the path
+for launching local movie files. The design, config keys, Windows and
+TV setup, and the power-on Wake-on-LAN caveat are in
+[PHASE3_DESIGN.md](PHASE3_DESIGN.md).
+
+- **Power off** with `KEY_POWER` while the TV is on (check REST state
+  first; the key is a toggle).
+- **Power on** with Wake-on-LAN to the TV’s MAC (the WebSocket is down
+  when the set is off). Enable Power On with Mobile / IP Remote.
+- **Inputs** via `KEY_HDMI` / `KEY_SOURCE`, with `KEY_HDMI1`–`4` tested
+  on this 2024 set before we rely on them. Named inputs (`Xbox`) live
+  in config.
+- Optional extra: `samsungtvws` is the first non-stdlib dependency for
+  the hub process and stays optional.
+
+### Phase 3 milestones
+
+1. Optional package, config, pairing, token file, REST status.
+2. Power off and WoL power on.
+3. HDMI / named-input switching, calibrated on the QN75QN800D.
+4. `TvSpecialist` (on/off, input, volume/mute) in the existing router.
+5. Compose with the phase 2 playback hook (wake, then play).
+6. Record what this firmware actually accepted for discrete HDMI keys.
+
 ## Explicitly out of scope (still)
 
 - Smart-home device control, Home Assistant, MQTT, lighting, locks.

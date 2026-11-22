@@ -355,7 +355,7 @@ The phase 1 hook sits in `MediaSpecialist._play()` after a title has
 been resolved to a path, and `/api/media/<id>/stream` currently returns
 501. Phase 2 should implement both, without baking in one undocumented
 root-tooling layout. The `samsung-tv-root` project is external; treat
-it as a plug-in.
+it as a plug-in. Phase 3 adds local, no-root power and HDMI control via samsungtvws; see [PHASE3_DESIGN.md](PHASE3_DESIGN.md).
 
 ### Adapter
 
