@@ -263,6 +263,7 @@ python3 -m jarvis.server
   clients, specialist plug-in points, security.
 - [Status](docs/STATUS.md) — what phase 1 shipped vs. what phase 2 should
   cover, plus known limitations.
+- [Phase 2 design](docs/PHASE2_DESIGN.md) — wake word, talkback, Grok API, TV playback, clients, transfers, and security.
 
 ## License
 

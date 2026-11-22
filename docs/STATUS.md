@@ -29,29 +29,61 @@
 - Unit tests for filename parsing, routing, and indexing. The server
   was also exercised with curl against a fake library.
 
-## Phase 2 should cover
+## Phase 2 scope
 
-- **Grok API** — enable `GrokSpecialist` as a low-priority catch-all
-  for commands the rule layer cannot handle. Keep core function working
-  if the network or the API is down.
-- **TV root controller** — hook the resolved file path in
-  `MediaSpecialist._play()` to the `samsung-tv-root` project so "play X
-  on the TV" actually starts playback on the QN75QN800D.
-- **Echo Show 15 and Fire TV voice remotes** — thin clients that submit
-  the same `/api/command` contract (and optionally subscribe to SSE).
-- **Laptop client** — a fuller desktop shell or a packaged view of the
-  existing dashboard.
-- Optional: HTTPS-by-default on the LAN, a tighter auth story, and
-  richer media metadata (runtime from the container, better artwork
-  fallbacks) if still missing.
+A full design, component choices, Windows setup, config keys, and
+milestones live in [PHASE2_DESIGN.md](PHASE2_DESIGN.md). Summary:
+
+- **Hub voice (interactive session only).** Always-on listening cannot
+  run in the existing Session 0 scheduled task. A new voice agent starts
+  **at logon** in the logged-on user session and talks to the hub over
+  localhost HTTP / SSE.
+- **Wake word:** openWakeWord (included “hey jarvis” model, fully
+  local). Porcupine is not a fit for a personal household given current
+  Picovoice plan terms and AccessKey validation.
+- **Speaker verification:** a separate enrollment of Patrick’s voice
+  (SpeechBrain ECAPA, Resemblyzer as fallback). A wake word alone is
+  not voice ID.
+- **STT:** faster-whisper on the 8 GB NVIDIA GPU, Vosk as a CPU
+  fallback.
+- **TTS:** Piper offline, Windows SAPI / pyttsx3 fallback. Not edge-tts
+  (it needs the internet).
+- **Grok API:** enable the existing disabled specialist as a catch-all,
+  key from `XAI_API_KEY`, Responses API at `https://api.x.ai/v1`,
+  timeouts, offline fallback, local function tools into current
+  specialists.
+- **TV playback:** a `TVController` adapter for `samsung-tv-root`, HTTP
+  Range streaming at `/api/media/<id>/stream`, DLNA/UPnP as a non-root
+  fallback.
+- **Echo Show 15 / Fire TV:** Silk or a sideloaded WebView against the
+  existing dashboard. An Alexa custom skill requires a public HTTPS
+  endpoint and stays opt-in only, with that cloud tradeoff explicit.
+- **Laptop client:** browser / PWA first, optional tray mute helper.
+- **Phone-to-TV transfers:** upload to the hub with a size cap and TTL,
+  then play or show on the TV through the same controller/stream path.
+
+### Phase 2 milestones
+
+1. Voice agent process + TTS talkback (proves the session split).
+2. Grok specialist (can overlap with 1).
+3. Wake word + STT.
+4. Speaker verification and a mute / listening indicator.
+5. HTTP Range streaming + `TVController` interface.
+6. `samsung-tv-root` adapter on the QN75QN800D.
+7. Phone-to-TV drag-and-drop transfers.
+8. Laptop shortcut / PWA, then an optional tray app.
+9. Echo Show 15 and Fire TV thin clients.
+10. Per-device tokens and optional LAN HTTPS hardening.
 
 ## Explicitly out of scope (still)
 
 - Smart-home device control, Home Assistant, MQTT, lighting, locks.
-- Streaming the movie file through the hub.
-- Cloud dependency for core function.
+- Cloud dependency for **core** function (Grok and Alexa skills are
+  optional and must fail open to local rules).
+- Transcoding, a full TV-show season/episode model, and (unless later
+  accepted) a public Alexa skill endpoint.
 
-## Known limitations
+## Known limitations (phase 1, still true until the matching milestone)
 
 - The Web Speech mic on a phone almost always needs HTTPS or localhost.
   Over `http://<lan-ip>` the page falls back to typing or the phone
@@ -60,7 +92,8 @@
 - The Tizen Internet app is not a complete modern desktop browser.
   The TV page avoids bleeding-edge JavaScript and hover, but unusual
   Tizen quirks may still appear; bookmarking `/tv` is recommended.
-- "Play on the TV" is a stub. It will not start a file on the Samsung.
+- "Play on the TV" is a stub. It will not start a file on the Samsung
+  until the phase 2 `TVController` work lands.
 - Filename parsing covers common scene / Kodi patterns; odd names or
   TV-episode schemes may need a later pass. `.nfo` wins when present.
 - Incremental scans key off file and sidecar mtimes. If you only rename
@@ -70,7 +103,7 @@
   until logon. Prefer the library owner's account in that case.
 - Optional `auth_token` is a single shared household secret, not
   per-user authentication. SSE and the dashboard still assume a trusted
-  LAN.
+  LAN. Phase 2 plans per-device tokens.
 - `ThreadingHTTPServer` holds one thread per SSE client. Fine for a
   handful of household devices, not for a public deployment.
 - No transcoding, no subtitle handling, no TV-show season/episode model.
