@@ -1,4 +1,4 @@
-# Status — phase 1 vs. later work
+# Status — phase 1 shipped, phase 2 implemented, later work
 
 ## Done in phase 1
 
@@ -18,81 +18,89 @@
 - Command pipeline with explicit stages: wake → receive → route → reply
   → display. `POST /api/command` plus `GET /api/events` (SSE) so phone
   and TV stay in sync.
-- Pluggable specialists: rule-based core, media (including a stub
-  "would play on the TV" action and a marked `samsung-tv-root` hook),
-  and a disabled `GrokSpecialist` placeholder.
+- Pluggable specialists: rule-based core, media, and a Grok placeholder
+  that stays disabled without an API key.
 - Media index: recursive video scan, filename / folder title+year
   parsing, Kodi `.nfo` and sidecar posters, SQLite, incremental mtime
   rescan, background scan, search and poster endpoints, fuzzy title
-  match. No arbitrary file reads. No video streaming.
+  match. No arbitrary file reads.
 - README (Hub PC, phone, TV), architecture notes, this status file.
-- Unit tests for filename parsing, routing, and indexing. The server
-  was also exercised with curl against a fake library.
+- Unit tests for filename parsing, routing, and indexing.
 
-## Phase 2 scope
+## Phase 2 implementation progress
 
-A full design, component choices, Windows setup, config keys, and
-milestones live in [PHASE2_DESIGN.md](PHASE2_DESIGN.md). Summary:
+Design: [PHASE2_DESIGN.md](PHASE2_DESIGN.md). Thin-client notes:
+[CLIENTS.md](CLIENTS.md). TV mic diagnostic: [TV_MIC_PROBE.md](TV_MIC_PROBE.md).
 
-- **Hub voice (interactive session only).** Always-on listening cannot
-  run in the existing Session 0 scheduled task. A new voice agent starts
-  **at logon** in the logged-on user session and talks to the hub over
-  localhost HTTP / SSE.
-- **Wake word:** openWakeWord (included “hey jarvis” model, fully
-  local). Porcupine is not a fit for a personal household given current
-  Picovoice plan terms and AccessKey validation.
-- **Speaker verification:** a separate enrollment of Patrick’s voice
-  (SpeechBrain ECAPA, Resemblyzer as fallback). A wake word alone is
-  not voice ID.
-- **STT:** faster-whisper on the 8 GB NVIDIA GPU, Vosk as a CPU
-  fallback.
-- **TTS:** Piper offline, Windows SAPI / pyttsx3 fallback. Not edge-tts
-  (it needs the internet).
-- **Grok API:** enable the existing disabled specialist as a catch-all,
-  key from `XAI_API_KEY`, Responses API at `https://api.x.ai/v1`,
-  timeouts, offline fallback, local function tools into current
-  specialists.
-- **TV playback:** a `TVController` adapter for `samsung-tv-root`, HTTP
-  Range streaming at `/api/media/<id>/stream`, DLNA/UPnP as a non-root
-  fallback.
-- **Echo Show 15 / Fire TV:** Silk or a sideloaded WebView against the
-  existing dashboard. An Alexa custom skill requires a public HTTPS
-  endpoint and stays opt-in only, with that cloud tradeoff explicit.
-- **Laptop client:** browser / PWA first, optional tray mute helper.
-- **Phone-to-TV transfers:** upload to the hub with a size cap and TTL,
-  then play or show on the TV through the same controller/stream path.
+Status values: **done** (automated tests on this box),
+**implemented-untested-on-hardware** (code and tests with mocks / fakes;
+needs a check on the Hub PC or the TV), **pending**.
 
-### Phase 2 milestones
+| # | Milestone | Status | How it was verified here |
+| - | --------- | ------ | ------------------------ |
+| 1 | Voice agent process + TTS talkback (session split) | **implemented-untested-on-hardware** | `VoicePipeline` / `VoiceAgent` unit tests with fake TTS; localhost protocol test posts a command and “speaks” the reply. Piper, SAPI, sounddevice, and real speakers were **not** exercised. |
+| 2 | Grok specialist | **done** (mocked HTTP only) | Unit tests with a fake `http_post`. Offline fallback, tool call for `play_media`, `/responses` and `/chat/completions` shapes. The real xAI API was **never** called (no key on this box). |
+| 3 | Wake word + STT | **implemented-untested-on-hardware** | Fake wake engine + fake STT in unit and protocol tests, including a simulated wake frame then a transcript. openWakeWord, faster-whisper, and Vosk were not loaded (optional extras). |
+| 4 | Speaker verification and mute / listening indicator | **implemented-untested-on-hardware** | Enrollment store + cosine tests with a hash encoder; reject path; skip-if-unenrolled; `POST /api/voice/mute` and dashboard mute button. SpeechBrain / Resemblyzer were not loaded. No real enrollment of Patrick's voice. |
+| 5 | HTTP Range streaming + `TVController` interface | **implemented-untested-on-hardware** | Unit tests and curl: `206` / `Content-Range` / `Accept-Ranges`, 416, signed stream tokens, token-gated bare URLs. `NullController` keeps phase 1 `would_play` behavior. No real TV played a file. |
+| 6 | `samsung-tv-root` adapter on the QN75QN800D | **implemented-untested-on-hardware** | Hook implemented (`command` or `endpoint` in `tv.controller_options`). Unconfigured hook honestly returns `would_play`. Endpoint hook tested against a local mock HTTP server. The external root project was not installed and the TV was not contacted. |
+| 7 | Phone-to-TV drag-and-drop transfers | **implemented-untested-on-hardware** | Upload allowlist (extension + magic), size cap, list, delete, Range stream, play-through-controller, SSE events, phone drop zone + TV incoming row. No file was shown on the real TV. |
+| 8 | Laptop shortcut / PWA, optional tray | **implemented-untested-on-hardware** | `/laptop` alias, `scripts/install_laptop_shortcut.ps1`, `python -m jarvis.tray` (tkinter). Not clicked on a Windows laptop here. |
+| 9 | Echo Show 15 and Fire TV thin clients | **implemented-untested-on-hardware** | `/echo` and `/fire` aliases plus [CLIENTS.md](CLIENTS.md). No Alexa skill (would need public HTTPS :443). Not opened on those devices here. |
+| 10 | Per-device tokens and optional LAN HTTPS | **done** (tokens); HTTPS script already existed | `auth_token` still works; `auth_tokens` map (plain or `sha256:…`); `X-Hub-Token` / Bearer / query. Stream URLs use short-lived HMAC query tokens. LAN HTTPS remains the existing cert script. |
+| — | TV mic probe (diagnostic) | **implemented-untested-on-hardware** | `/tv/mic-probe` page, `POST`/`GET /api/mic-probe`, health summary. Endpoint tests below. **Not run on the QN75QN800D.** |
 
-1. Voice agent process + TTS talkback (proves the session split).
-2. Grok specialist (can overlap with 1).
-3. Wake word + STT.
-4. Speaker verification and a mute / listening indicator.
-5. HTTP Range streaming + `TVController` interface.
-6. `samsung-tv-root` adapter on the QN75QN800D.
-7. Phone-to-TV drag-and-drop transfers.
-8. Laptop shortcut / PWA, then an optional tray app.
-9. Echo Show 15 and Fire TV thin clients.
-10. Per-device tokens and optional LAN HTTPS hardening.
+The hub process remains **stdlib-only**. Voice extras live in
+`requirements-voice.txt` and are imported lazily.
 
-## Phase 3 scope
+### Hardware test checklist (Hub PC and TV)
+
+Do these on the Windows Hub PC and the QN75QN800D after unzip / git
+pull to `C:\JarvisHub`:
+
+1. Hub still starts with no voice extras: `.\scripts\run.ps1`, then
+   `http://127.0.0.1:8765/api/health`.
+2. Install the voice agent in a **logged-on** session:
+   `.\scripts\install_voice_agent.ps1`. Confirm the boot task
+   `JarvisHub` is unchanged and the new task is `JarvisHubVoice` **At
+   logon**, not Session 0.
+3. `python -m jarvis.voice --list-devices` sees the mic and speakers.
+   Set `voice.input_device` / `output_device` if the defaults are wrong.
+4. Enroll Patrick's voice: `.\scripts\enroll_voice.ps1` (three clips).
+   Confirm `data/voice/enrollments/profile.json` is written.
+5. Say **“hey jarvis”** then a command. Confirm a reply is spoken on
+   the PC speakers, the phone and `/tv` pages show the same reply, and
+   a second speaker is rejected (or note the threshold).
+6. Mute from the phone dashboard; confirm the agent stops listening.
+   Unmute.
+7. With `XAI_API_KEY` set, ask something the local specialists do not
+   handle; confirm a Grok reply. Unset the key and confirm local
+   fallback still works.
+8. Play a library title. Confirm a stream URL is issued. Point
+   `tv.controller` at samsung-tv-root when that project is installed
+   and confirm the file actually starts on the TV. Until then,
+   `would_play` is expected.
+9. Upload a short video or photo from the phone Library tab; open it
+   from the TV Incoming files row.
+10. Open `/laptop`, the Echo Show Silk bookmark, and Fire TV `/fire`.
+11. On the TV Internet app, open
+    `http://<hub-ip>:8765/tv/mic-probe`, run the probe, then check
+    `GET /api/health` → `mic_probe`. If `live_audio` is false, keep
+    treating the TV as display-only.
+
+## Phase 3 scope (design only — no phase 3 code in this tree)
 
 Local, no-root Samsung TV control for the QN75QN800DFXZA (power on/off
-and HDMI / named inputs) using the samsungtvws WebSocket remote. This
-pairs with the phase 2 `samsung-tv-root` hook, which remains the path
-for launching local movie files. The design, config keys, Windows and
-TV setup, and the power-on Wake-on-LAN caveat are in
-[PHASE3_DESIGN.md](PHASE3_DESIGN.md).
+and HDMI / named inputs) using the samsungtvws WebSocket remote, plus
+the companions now noted in [PHASE3_DESIGN.md](PHASE3_DESIGN.md):
 
-- **Power off** with `KEY_POWER` while the TV is on (check REST state
-  first; the key is a toggle).
-- **Power on** with Wake-on-LAN to the TV’s MAC (the WebSocket is down
-  when the set is off). Enable Power On with Mobile / IP Remote.
-- **Inputs** via `KEY_HDMI` / `KEY_SOURCE`, with `KEY_HDMI1`–`4` tested
-  on this 2024 set before we rely on them. Named inputs (`Xbox`) live
-  in config.
-- Optional extra: `samsungtvws` is the first non-stdlib dependency for
-  the hub process and stays optional.
+- Dual-orb TV overlay (blue listen / orange talkback), listener
+  breadcrumb, and nearest-node mic handoff.
+- Nighttime Reolink SD-card person detection (10 PM–6 AM, America/New_York).
+- A later household security-scanning / hardening pass.
+- Wake-on-LAN for power-on; `KEY_HDMI` / `KEY_SOURCE` input strategy.
+
+Do **not** implement samsungtvws, power, or HDMI in phase 2.
 
 ### Phase 3 milestones
 
@@ -102,6 +110,9 @@ TV setup, and the power-on Wake-on-LAN caveat are in
 4. `TvSpecialist` (on/off, input, volume/mute) in the existing router.
 5. Compose with the phase 2 playback hook (wake, then play).
 6. Record what this firmware actually accepted for discrete HDMI keys.
+7. Dual-orb UI + mic-node handoff.
+8. Nighttime Reolink person detection.
+9. Security scanning / hardening report.
 
 ## Explicitly out of scope (still)
 
@@ -110,8 +121,9 @@ TV setup, and the power-on Wake-on-LAN caveat are in
   optional and must fail open to local rules).
 - Transcoding, a full TV-show season/episode model, and (unless later
   accepted) a public Alexa skill endpoint.
+- Treating the TV as a listener until `/tv/mic-probe` proves live audio.
 
-## Known limitations (phase 1, still true until the matching milestone)
+## Known limitations
 
 - The Web Speech mic on a phone almost always needs HTTPS or localhost.
   Over `http://<lan-ip>` the page falls back to typing or the phone
@@ -120,8 +132,10 @@ TV setup, and the power-on Wake-on-LAN caveat are in
 - The Tizen Internet app is not a complete modern desktop browser.
   The TV page avoids bleeding-edge JavaScript and hover, but unusual
   Tizen quirks may still appear; bookmarking `/tv` is recommended.
-- "Play on the TV" is a stub. It will not start a file on the Samsung
-  until the phase 2 `TVController` work lands.
+- “Play on the TV” resolves a file and a Range stream URL. It will not
+  start playback on the Samsung until `tv.controller_options` points at
+  a working samsung-tv-root (or another) hook. DLNA advertisement is
+  stubbed, not a full UPnP stack.
 - Filename parsing covers common scene / Kodi patterns; odd names or
   TV-episode schemes may need a later pass. `.nfo` wins when present.
 - Incremental scans key off file and sidecar mtimes. If you only rename
@@ -129,9 +143,12 @@ TV setup, and the power-on Wake-on-LAN caveat are in
 - Running the scheduled task as SYSTEM may be unable to read a movie
   library that lives in a user profile or on a drive that is not mounted
   until logon. Prefer the library owner's account in that case.
-- Optional `auth_token` is a single shared household secret, not
-  per-user authentication. SSE and the dashboard still assume a trusted
-  LAN. Phase 2 plans per-device tokens.
+- The voice agent **cannot** run inside the boot (Session 0) service.
+  It needs an interactive logon (or autologon, which is a security
+  tradeoff and is not the default).
+- Wake-word engines are not speaker ID. Until Patrick enrolls, the
+  agent skips verification and will accept any voice that says “hey
+  jarvis”.
 - `ThreadingHTTPServer` holds one thread per SSE client. Fine for a
   handful of household devices, not for a public deployment.
 - No transcoding, no subtitle handling, no TV-show season/episode model.

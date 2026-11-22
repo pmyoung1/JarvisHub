@@ -26,6 +26,9 @@ exact TV; see [confidence notes](#8-confidence-notes).
 8. [Confidence notes](#8-confidence-notes)
 9. [Milestones](#9-milestones)
 10. [Sources](#10-sources)
+11. [Dual-orb TV interface and mic-node handoff](#11-dual-orb-tv-interface-and-mic-node-handoff)
+12. [Nighttime Reolink person detection](#12-nighttime-reolink-person-detection)
+13. [Security scanning](#13-security-scanning)
 
 ---
 
@@ -456,9 +459,16 @@ and do not port-forward the TV.
    hook (wake, then play).
 6. Docs in STATUS/README updated with what the real TV accepted
    (especially discrete HDMI).
+7. Dual-orb TV overlay (listen / talkback) plus mic-node breadcrumb
+   and nearest-node handoff (section 11).
+8. Nighttime Reolink SD-card person detection, 10 PM–6 AM (section 12).
+9. Household security scanning notes and a later hardening pass
+   (section 13).
 
-Still out of scope: Home Assistant / MQTT, SmartThings cloud input
-switching, and general smart-home device control.
+Still out of scope for the power/input work itself: Home Assistant /
+MQTT, SmartThings cloud input switching, and general smart-home device
+control. Reolink and scanning are scoped here as later phase 3
+companions, not as phase 2 code.
 
 ---
 
@@ -469,3 +479,80 @@ switching, and general smart-home device control.
 - Library behavior: [`rest.py` `rest_device_info()`](https://github.com/xchwarze/samsung-tv-ws-api/blob/master/samsungtvws/rest.py), [`connection.py`](https://github.com/xchwarze/samsung-tv-ws-api/blob/master/samsungtvws/connection.py) (8002 → WSS + token; REST path `/api/v2/`), [`shortcuts.py` `power()` → `KEY_POWER`](https://github.com/xchwarze/samsung-tv-ws-api/blob/master/samsungtvws/shortcuts.py).
 - Home Assistant: [Samsung Smart TV integration](https://www.home-assistant.io/integrations/samsungtv/) (WoL to turn on, same-subnet limit, `KEY_POWER` as toggle on 2016+ TVs, sources often just `TV` and `HDMI`, key list has `KEY_HDMI` / `KEY_SOURCE`).
 - Samsung 2024 e-manual (Power On with Mobile and IP Remote menu path): [BN81-24055A-470 English e-manual PDF](https://downloadcenter.samsung.com/content/UM/202402/20240213183011591/BN81-24055A-470_EM_OSPATSCC_NA_ENG-US_240206.0.pdf) (Settings → All Settings → Connection → Network → Expert Settings).
+
+---
+
+## 11. Dual-orb TV interface and mic-node handoff
+
+Design only — do not implement in phase 2. The `/tv` dashboard gains a
+pair of orbs modeled after the Jarvis holographic orbs in *Avengers:
+Age of Ultron*.
+
+- **Blue orb (listen).** Pulses when a LAN mic node is actively
+  hearing. Amplitude comes from a Web Audio `AnalyserNode` reading
+  **time-domain** data (`getByteTimeDomainData`). The orb's scale
+  follows that amplitude with a sine ease, and a CSS radial gradient
+  supplies the soft glow.
+- **Orange orb (talkback).** Glows when Jarvis's TTS is playing
+  through speakers (hub PC, or a later TV/speaker endpoint). A hidden
+  `<audio>` element (or a Web Audio graph of the talkback stream)
+  feeds a second `AnalyserNode`; the orange orb scales to that output
+  amplitude with the same easing.
+
+A **breadcrumb** under the orbs names the active listener (for example
+“Patrick's phone”, “kitchen tablet”, “Echo Show 15”, “hub mic”) so you
+can see which node has the floor as you move around the house.
+
+### Multi-node listening web
+
+Phones, tablets, and the Echo Show act as **sensor nodes**. Each node
+samples locally, runs on-device wake-word detection, and ships only
+command text or a short clip to the hub — not a continuous raw stream.
+The TV Internet app is **not** assumed to be a node; see
+[TV_MIC_PROBE.md](TV_MIC_PROBE.md). If that probe never records live
+audio, the TV stays a display for the orbs and the remote, not an ear.
+
+**Handoff.** The hub tracks each node's last wake, RSSI / last-seen
+time, and a short energy hint. The nearest (or most recently active)
+node is elected as the listener. A grace window avoids flip-flopping
+when two devices hear the same phrase. The TV breadcrumb updates over
+the existing SSE channel (`voice` events). The user should not have to
+pick a device.
+
+This depends on phase 2's voice agent (hub mic) and on later thin
+clients that can run a local wake word. The orb visuals themselves can
+be prototyped against SSE `voice` / talkback events before every node
+exists.
+
+## 12. Nighttime Reolink person detection
+
+Companion scope for phase 3, not part of samsungtvws power/HDMI and
+not implemented now.
+
+- Watch the household Reolink camera's **SD-card / FTP / HTTP snapshot
+  or event API** (exact model to be recorded when this is built).
+- Window: **10:00 PM to 6:00 AM** in America/New_York.
+- On a person-detection event, the hub records it, can speak or show a
+  short TV/dashboard alert, and must not depend on a cloud subscription
+  if a local path exists.
+- Privacy: nighttime-only by default, no continuous video upload off
+  the LAN, retention limits to be set in config.
+
+Exact Reolink API details are left to the implementation milestone
+once the camera model and local access method are confirmed.
+
+## 13. Security scanning
+
+A later phase 3 hardening pass, not a always-on port scanner aimed at
+the public internet:
+
+- Occasional **LAN inventory** of the hub's own listening ports and
+  the devices that have recently used per-device tokens.
+- Dependency / config review (auth tokens set, SSL optional for the
+  phone mic, stream-token TTL, transfer allowlist).
+- Optional scheduled report to the dashboard, never a requirement for
+  core voice or playback.
+
+This is documentation of intent only. Do not add network-attack or
+exploit tooling. Keep scans on the household LAN and the hub host.
+

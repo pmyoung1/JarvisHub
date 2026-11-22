@@ -1,17 +1,21 @@
-# Jarvis Hub (Phase 1)
+# Jarvis Hub
 
 A lightweight, always-on household AI hub that runs on a Windows desktop PC
 and serves a local-network dashboard to phones and a Samsung TV browser.
 
-Phase 1 is the plumbing: wake, receive, route, reply, display. It indexes a
-local movie library, accepts typed or spoken commands, and returns rule-based
-replies. Nothing here requires the cloud. Grok API, TV-root playback, Echo
-Show / Fire TV remotes, and a laptop client are reserved for phase 2.
+Phase 1 is the plumbing: wake, receive, route, reply, display, and a local
+movie index. Phase 2 adds an interactive voice agent on the Hub PC (wake
+word, speaker check, talkback), optional Grok replies, HTTP Range
+streaming with a TV controller hook, phone-to-TV transfers, and thin
+clients for a laptop, Echo Show, and Fire TV. Core function still works
+entirely on the LAN with no cloud. The Grok specialist stays off unless
+you set `XAI_API_KEY`.
 
 The target machine is a well-built Windows desktop (32 GB RAM, 8 GB VRAM,
-large local movie library). The code is Python 3.10+ and stays on the
-standard library (`http.server`, `json`, `sqlite3`, `pathlib`, `logging`,
-`xml`, `difflib`, `ssl`).
+large local movie library). The hub process is Python 3.10+ and stays on the standard library
+(`http.server`, `json`, `sqlite3`, `pathlib`, `logging`, `xml`,
+`difflib`, `ssl`). Optional voice libraries are listed in
+`requirements-voice.txt` and are imported only by the voice agent.
 
 ## What you get
 
@@ -22,12 +26,15 @@ standard library (`http.server`, `json`, `sqlite3`, `pathlib`, `logging`,
   - TV remote view at `http://<hub-ip>:8765/tv` — 10-foot UI for the
     Samsung 75" Neo QLED 8K (`QN75QN800DFXZA`, Tizen 8/9) built-in Internet
     browser. D-pad navigation, no native app.
-- Command pipeline with pluggable specialists (core + media; a disabled
-  Grok placeholder).
+- Command pipeline with pluggable specialists (core + media + Grok when
+  an API key is present).
 - A media indexer that walks configured library folders, parses titles and
   years, reads Kodi-style `.nfo` files and poster sidecars, and serves
-  poster art. "Play X on the TV" resolves to a file path and returns a
-  **stub** "would play" action. Video is not streamed in phase 1.
+  poster art. "Play X on the TV" resolves a file, issues an HTTP Range
+  stream URL, and calls the configured TV controller. Until
+  samsung-tv-root is hooked up, the reply stays "would play".
+- An optional voice agent (`python -m jarvis.voice`) that must run in a
+  logged-on desktop session, not in the boot service.
 
 ## Hub PC setup (Windows)
 
@@ -42,8 +49,9 @@ PowerShell:
 py -3 --version
 ```
 
-No third-party packages are required. `requirements.txt` is present only
-to document that fact.
+No third-party packages are required for the hub itself.
+`requirements.txt` documents that. Voice extras are optional
+(`requirements-voice.txt`).
 
 ### 2. Copy the project onto the PC
 
@@ -68,11 +76,20 @@ Set at least:
   (`"D:/Movies"`).
 - `data_dir` — where the SQLite index and rotating logs go (default
   `data/`, under the repo).
-- `auth_token` — optional shared secret. If set, clients must send it as
+- `auth_token` — optional household secret. If set, clients must send it as
   the `X-Hub-Token` header or a `?token=` query parameter. Leave `""` for
   an open LAN.
+- `auth_tokens` — optional per-device secrets (`phone`, `tv`, `laptop`,
+  `voice`, `transfers`). Values may be the raw token or `sha256:<hex>`.
+- `voice`, `grok`, `tv`, `transfers` — see `config.example.json` and
+  [PHASE2_DESIGN.md](docs/PHASE2_DESIGN.md). Leave `tv.controller` as
+  `"null"` until samsung-tv-root is installed. Grok is used only when
+  the environment variable in `grok.api_key_env` (default `XAI_API_KEY`)
+  is set.
 - `ssl` — leave disabled unless you want HTTPS for the phone mic button
   (see below).
+- `public_host` — optional LAN name or IP used when building stream URLs
+  (otherwise the request `Host` header is used).
 
 ### 4. Test-run in the foreground
 
@@ -162,6 +179,43 @@ In your router's DHCP settings, add a **reservation** for this PC's MAC
 address so the IP does not change. A static address on the adapter itself
 also works. You will use this IP on the phone and the TV.
 
+
+## Voice agent (phase 2, Hub PC)
+
+Windows will not give a Session 0 boot service access to the microphone.
+The hub service stays as it is. The voice agent is a **separate**
+process that starts **when someone logs on**.
+
+```powershell
+cd C:\JarvisHub
+.\scripts\install_voice_agent.ps1
+.\scripts\enroll_voice.ps1
+Start-ScheduledTask -TaskName JarvisHubVoice
+```
+
+The install script creates `.venv`, installs `requirements-voice.txt`,
+downloads the default Piper voice (`en_US-lessac-medium`), and registers
+an At-logon task named `JarvisHubVoice`. Enrollment records three clips
+of Patrick's voice for SpeechBrain ECAPA (Resemblyzer is the fallback).
+
+Until you enroll, the agent logs a warning and skips the voice check
+(anyone who says "hey jarvis" is accepted). After enrollment, only a
+close match to the saved profile is transcribed and sent to the hub.
+
+List devices:
+
+```powershell
+.\.venv\Scripts\python.exe -m jarvis.voice --list-devices
+```
+
+Set `voice.input_device` and `voice.output_device` in `config.json` if
+needed. Talkback uses Piper first, then Windows SAPI via pyttsx3.
+`speak_sources` defaults to `["hub-mic"]`, so typed phone commands are
+not spoken aloud unless you add those sources.
+
+Remove the logon task with `.\scripts\uninstall_voice_agent.ps1`. This
+does not touch the `JarvisHub` boot service.
+
 ## Open the dashboard from a phone
 
 1. Join the same Wi-Fi / LAN as the hub PC.
@@ -213,12 +267,21 @@ The Tizen browser is unlikely to support the Web Speech API, so the TV
 page has **no mic button**. Use the quick-action tiles, or type with the
 on-screen keyboard and press Send.
 
-This phase does **not** talk to a rooted TV or launch a local movie file.
-"Play … on the TV" only resolves the file and tells you it *would* play.
-That hook is marked in the media specialist for phase 2
-(`samsung-tv-root`).
+"Play … on the TV" resolves the file and returns an HTTP Range stream
+URL (`GET /api/media/<id>/stream`). Playback on the set starts only
+when `tv.controller` is `samsung-tv-root` (or another backend) and
+`tv.controller_options.command` or `.endpoint` points at that project.
+Until then the reply is still "would play".
 
-## Commands (phase 1)
+To test whether the TV's own microphone is usable from this browser,
+open `http://<hub-ip>:8765/tv/mic-probe`. See
+[docs/TV_MIC_PROBE.md](docs/TV_MIC_PROBE.md). If that probe cannot get
+live audio, treat the TV as display-only.
+
+Laptop, Echo Show 15, and Fire TV setup is in
+[docs/CLIENTS.md](docs/CLIENTS.md).
+
+## Commands
 
 | You say / type              | What happens                                      |
 | --------------------------- | ------------------------------------------------- |
@@ -229,7 +292,7 @@ That hook is marked in the media specialist for phase 2
 | `status`                    | Uptime, library size, connected clients           |
 | `list movies`               | Titles from the index                             |
 | `find <title>`              | Search / fuzzy match                              |
-| `play <title> on the tv`    | Resolves a file, returns a stub "would play"      |
+| `play <title> on the tv`    | Resolves a file, issues a stream URL, asks the TV controller to play it |
 | `jarvis, …`                 | Optional wake-word prefix, stripped before routing |
 
 ## Useful endpoints
@@ -242,12 +305,19 @@ That hook is marked in the media specialist for phase 2
 - `GET /api/media?q=&limit=&offset=`
 - `GET /api/media/<id>`
 - `GET /api/media/<id>/poster` — sidecar art or a generated SVG placeholder
+- `GET /api/media/<id>/stream` — HTTP Range stream of an **indexed** file
+  (optional short-lived `exp`/`sig` query token)
 - `POST /api/media/rescan` — `?wait=1` to block until done; `?full=1` to
   re-parse everything
+- `POST /api/transfers` — phone upload (multipart or raw + `X-Filename`)
+- `GET /api/transfers`, `GET /api/transfers/<id>/stream`,
+  `POST /api/transfers/<id>/play`, `DELETE /api/transfers/<id>`
+- `GET`/`POST /api/voice/status`, `POST /api/voice/mute`
+- `GET`/`POST /api/mic-probe` — TV microphone diagnostic reports
+- `GET /tv/mic-probe` — 10-foot probe page for the TV Internet app
 
-Poster serving is restricted to paths stored in the index. There is no
-arbitrary file read, and no video stream (`/api/media/<id>/stream` returns
-501 on purpose).
+Poster and video serving are restricted to paths stored in the index or
+the transfer store. There is no arbitrary file read.
 
 ## Developing / verifying on Linux
 
@@ -261,11 +331,12 @@ python3 -m jarvis.server
 
 - [Architecture](docs/ARCHITECTURE.md) — components, the pipeline, thin
   clients, specialist plug-in points, security.
-- [Status](docs/STATUS.md) — what phase 1 shipped vs. what phase 2 should
-  cover, plus known limitations.
+- [Status](docs/STATUS.md) — phase 2 progress, hardware checklist, and later work.
 - [Phase 2 design](docs/PHASE2_DESIGN.md) — wake word, talkback, Grok API, TV playback, clients, transfers, and security.
-- [Phase 3 design](docs/PHASE3_DESIGN.md) — Samsung TV power, HDMI inputs, and Wake-on-LAN via samsungtvws (no root).
+- [Thin clients](docs/CLIENTS.md) — phone, TV, laptop, Echo Show 15, Fire TV.
+- [TV mic probe](docs/TV_MIC_PROBE.md) — diagnostic for the QN75QN800D built-in microphone.
+- [Phase 3 design](docs/PHASE3_DESIGN.md) — Samsung TV power, HDMI, Wake-on-LAN, dual-orb UI, Reolink nighttime detection, security scanning.
 
 ## License
 
-For household use by Katie. No cloud services are required for phase 1.
+For household use by Katie. No cloud services are required for core function.

@@ -667,3 +667,13 @@ smart-home device control.
 - Windows audio / logon: [Interactive services / Session 0](https://learn.microsoft.com/en-us/windows/win32/services/interactive-services), [Sysinternals Autologon](https://learn.microsoft.com/en-us/sysinternals/downloads/autologon), [automatic logon](https://learn.microsoft.com/en-us/troubleshoot/windows-server/user-profiles-and-logon/turn-on-automatic-logon).
 - Alexa skill hosting: [Host a custom skill as a web service](https://developer.amazon.com/en-US/docs/alexa/custom-skills/host-a-custom-skill-as-a-web-service.html) (public internet, HTTPS port 443, trusted cert).
 - Fire TV WebView apps: [HTML5 hybrid app FAQ](https://developer.amazon.com/docs/fire-tv/web-hybrid-app-faq.html).
+
+## 14. TV microphone probe (diagnostic)
+
+A 10-foot page at `/tv/mic-probe` checks whether the QN75QN800D's
+built-in mic is usable from the TV Internet app (Tizen Product
+Microphone API and `getUserMedia`). Reports are stored via
+`POST /api/mic-probe` and summarized on `GET /api/health`. This is a
+diagnostic only; phones and the Echo Show remain the primary ears.
+See [TV_MIC_PROBE.md](TV_MIC_PROBE.md).
+
