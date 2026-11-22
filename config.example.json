@@ -2,12 +2,20 @@
   "hub_name": "Jarvis",
   "host": "0.0.0.0",
   "port": 8765,
+  "public_host": "",
   "data_dir": "data",
   "media_paths": [
     "D:\\Movies",
     "E:\\Media\\Films"
   ],
   "auth_token": "",
+  "auth_tokens": {
+    "phone": "",
+    "tv": "",
+    "laptop": "",
+    "voice": "",
+    "transfers": ""
+  },
   "wake_word": "jarvis",
   "log_max_bytes": 1048576,
   "log_backup_count": 5,
@@ -15,5 +23,51 @@
     "enabled": false,
     "certfile": "certs/cert.pem",
     "keyfile": "certs/key.pem"
+  },
+  "voice": {
+    "enabled": true,
+    "hub_url": "http://127.0.0.1:8765",
+    "wake_engine": "openwakeword",
+    "wake_model": "hey jarvis",
+    "wake_threshold": 0.5,
+    "speaker_engine": "ecapa",
+    "speaker_threshold": 0.65,
+    "enrollments_dir": "data/voice/enrollments",
+    "stt_engine": "faster-whisper",
+    "stt_model": "small",
+    "stt_device": "cuda",
+    "stt_compute_type": "int8_float16",
+    "tts_engine": "piper",
+    "tts_voice": "en_US-lessac-medium",
+    "tts_voices_dir": "data/voices",
+    "tts_fallback": "sapi",
+    "input_device": "",
+    "output_device": "",
+    "speak_sources": ["hub-mic"],
+    "retain_recordings": false,
+    "mute": false
+  },
+  "grok": {
+    "enabled": true,
+    "api_key_env": "XAI_API_KEY",
+    "base_url": "https://api.x.ai/v1",
+    "model": "grok-4.7",
+    "timeout_seconds": 30,
+    "history_turns": 8,
+    "provider_tools": false
+  },
+  "tv": {
+    "controller": "null",
+    "controller_options": {
+      "command": "",
+      "endpoint": ""
+    },
+    "stream_token_ttl_seconds": 300
+  },
+  "transfers": {
+    "dir": "data/transfers",
+    "max_bytes": 1073741824,
+    "ttl_hours": 48,
+    "allowed_extensions": [".mp4", ".mkv", ".webm", ".mov", ".m4v", ".jpg", ".jpeg", ".png", ".webp", ".mp3", ".wav"]
   }
 }

@@ -1,0 +1,26 @@
+# Optional extras for the interactive voice agent only.
+# The hub process itself stays on the Python standard library.
+# Install into the same venv (or a dedicated one) with:
+#   .venv\Scripts\pip install -r requirements-voice.txt
+#
+# These are imported lazily by jarvis.voice.*. Missing packages
+# degrade gracefully (wake/STT/TTS engines fall back or stay unavailable).
+
+openwakeword>=0.6.0,<0.7
+onnxruntime>=1.16
+sounddevice>=0.4.6
+numpy>=1.24
+# GPU STT (install a CUDA-enabled torch/onnx stack on the Hub PC as needed)
+faster-whisper>=1.0.0
+# Speaker verification — SpeechBrain first, Resemblyzer fallback
+speechbrain>=1.0.0
+torch>=2.1.0
+resemblyzer>=0.1.1
+# Offline TTS
+piper-tts>=1.2.0
+# Windows SAPI fallback
+pyttsx3>=2.90
+# WAV playback helper used with sounddevice
+soundfile>=0.12.1
+# CPU STT fallback (you must also download a Vosk model)
+vosk>=0.3.44

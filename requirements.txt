@@ -1,9 +1,14 @@
-# Jarvis Hub — Phase 1
+# Jarvis Hub — core service
 # Core function uses the Python 3.10+ standard library only
 # (http.server, json, sqlite3, pathlib, logging, xml, difflib, ssl, ...).
 #
 # No third-party packages are required to run the hub, the dashboard,
-# the media indexer, or the unit tests.
+# the media indexer, Range streaming, transfers, the Grok specialist
+# (stdlib urllib), or the unit tests.
+#
+# Voice-agent extras (openWakeWord, faster-whisper, SpeechBrain, Piper,
+# pyttsx3, sounddevice) live in requirements-voice.txt and are imported
+# lazily so the hub still starts without them.
 #
 # Optional (not required):
 #   cryptography   # only if you prefer it over OpenSSL/PowerShell for
