@@ -28,6 +28,7 @@
       <button type="button" class="tile focusable" data-cmd="what time is it">Time</button>
       <button type="button" class="tile focusable" data-cmd="status">Status</button>
       <button type="button" class="tile focusable" data-cmd="list movies">Movies</button>
+      <a class="tile focusable" href="/tv/mic-probe">Mic probe</a>
     </div>
 
     <div class="reply-box" id="replyBox">
@@ -39,6 +40,11 @@
       <input class="focusable" type="text" id="cmd" placeholder="Type a command, then Send" autocomplete="off">
       <button type="submit" class="tile send-tile focusable">Send</button>
     </form>
+
+    <section class="tv-incoming" id="incomingSection" hidden>
+      <h2>Incoming files</h2>
+      <div class="poster-row" id="incomingRow"></div>
+    </section>
 
     <section class="tv-main">
       <h2 id="libLabel">Library</h2>
@@ -54,7 +60,7 @@
       <p id="ovMeta"></p>
       <p id="ovPlot"></p>
       <div class="overlay-actions">
-        <button type="button" class="tile focusable primary" id="ovPlay">Play on TV (stub)</button>
+        <button type="button" class="tile focusable primary" id="ovPlay">Play on TV</button>
         <button type="button" class="tile focusable" id="ovClose">Back</button>
       </div>
     </div>

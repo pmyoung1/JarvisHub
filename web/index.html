@@ -22,9 +22,12 @@
           <p class="sub">Household hub</p>
         </div>
       </div>
-      <div id="conn" class="status-pill" role="status">
-        <span class="dot"></span>
-        <span id="connLabel">Connecting</span>
+      <div class="top-status">
+        <button type="button" class="status-pill" id="muteBtn" title="Mute the hub microphone">Mic: —</button>
+        <div id="conn" class="status-pill" role="status">
+          <span class="dot"></span>
+          <span id="connLabel">Connecting</span>
+        </div>
       </div>
     </header>
 
@@ -44,6 +47,8 @@
         <input type="search" id="mediaQ" placeholder="Search titles" autocomplete="off">
         <button type="button" id="rescanBtn">Rescan</button>
       </div>
+      <div id="dropZone" class="drop-zone">Drop a photo or video here to send it to the TV through the hub.</div>
+      <div id="transferList" class="transfer-list"></div>
       <div id="mediaEmpty" class="empty" hidden>No titles indexed yet. Add folders to media_paths and rescan.</div>
       <div class="grid" id="mediaGrid"></div>
     </section>
@@ -64,7 +69,7 @@
       <p class="year" id="detailYear"></p>
       <p id="detailPlot"></p>
       <div class="detail-actions">
-        <button type="button" class="primary" id="detailPlay">Play on TV (stub)</button>
+        <button type="button" class="primary" id="detailPlay">Play on TV</button>
         <button type="button" id="detailClose">Close</button>
       </div>
     </div>

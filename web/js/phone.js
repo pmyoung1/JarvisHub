@@ -65,6 +65,8 @@
   J.connectEvents(function (type, data) {
     if (type === "reply") applyReply(data);
     if (type === "media") loadMedia(mediaQ.value || "");
+    if (type === "voice" && window._jarvisApplyVoice) window._jarvisApplyVoice(data);
+    if (type === "transfer" && window._jarvisLoadTransfers) window._jarvisLoadTransfers();
   }, setConn);
 
   J.request("GET", "/api/status", null, function (status, body) {
@@ -217,4 +219,103 @@
       }
     });
   }
+
+  /* Phase 2: hub-mic mute toggle and phone-to-TV transfers. */
+  var muteBtn = J.qs("#muteBtn");
+  function applyVoice(state) {
+    if (!muteBtn || !state) return;
+    var muted = !!state.muted;
+    muteBtn.textContent = muted ? "Mic: muted" : "Mic: " + (state.state || "listening");
+    muteBtn.className = "status-pill" + (muted ? " muted" : "");
+  }
+  if (muteBtn) {
+    muteBtn.addEventListener("click", function () {
+      var muted = muteBtn.className.indexOf("muted") === -1;
+      J.request("POST", "/api/voice/mute", { muted: muted }, function (status, body) {
+        if (status === 200 && body) applyVoice(body);
+      });
+    });
+  }
+  J.request("GET", "/api/voice/status", null, function (status, body) {
+    if (status === 200) applyVoice(body);
+  });
+
+  function loadTransfers() {
+    var list = J.qs("#transferList");
+    if (!list) return;
+    J.request("GET", "/api/transfers", null, function (status, body) {
+      list.innerHTML = "";
+      var items = (body && body.items) || [];
+      for (var i = 0; i < items.length; i++) {
+        (function (item) {
+          var row = document.createElement("button");
+          row.type = "button";
+          row.textContent = "Send to TV: " + (item.filename || item.public_id) + " (" + item.size + " bytes)";
+          row.addEventListener("click", function () {
+            J.request("POST", "/api/transfers/" + item.public_id + "/play", {}, function (st, resp) {
+              showTab("chat");
+              if (resp && resp.reply) addBubble("hub", resp.reply, "transfer");
+            });
+          });
+          list.appendChild(row);
+        })(items[i]);
+      }
+    });
+  }
+  loadTransfers();
+
+  var drop = J.qs("#dropZone");
+  function uploadFile(file) {
+    if (!file) return;
+    var xhr = new XMLHttpRequest();
+    var url = "/api/transfers";
+    try {
+      var tok = window.localStorage.getItem("jarvis_token") || "";
+      if (tok) {
+        url += "?token=" + encodeURIComponent(tok);
+        xhr.open("POST", url, true);
+        xhr.setRequestHeader("X-Hub-Token", tok);
+      } else {
+        xhr.open("POST", url, true);
+      }
+    } catch (err) {
+      xhr.open("POST", url, true);
+    }
+    xhr.setRequestHeader("X-Filename", file.name);
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    drop.textContent = "Uploading " + file.name + "…";
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      if (xhr.status >= 200 && xhr.status < 300) {
+        drop.textContent = "Uploaded " + file.name + ". Open it on the TV incoming-files row, or tap it below.";
+        loadTransfers();
+      } else {
+        var msg = "Upload failed";
+        try { msg = (JSON.parse(xhr.responseText) || {}).error || msg; } catch (e) {}
+        drop.textContent = msg;
+      }
+    };
+    xhr.send(file);
+  }
+  if (drop) {
+    drop.addEventListener("dragover", function (ev) { ev.preventDefault(); drop.className = "drop-zone drag"; });
+    drop.addEventListener("dragleave", function () { drop.className = "drop-zone"; });
+    drop.addEventListener("drop", function (ev) {
+      ev.preventDefault();
+      drop.className = "drop-zone";
+      var files = ev.dataTransfer && ev.dataTransfer.files;
+      if (files && files[0]) uploadFile(files[0]);
+    });
+    drop.addEventListener("click", function () {
+      var input = document.createElement("input");
+      input.type = "file";
+      input.accept = "video/*,image/*,audio/wav,audio/mpeg";
+      input.onchange = function () { if (input.files && input.files[0]) uploadFile(input.files[0]); };
+      input.click();
+    });
+  }
+
+
+  window._jarvisApplyVoice = applyVoice;
+  window._jarvisLoadTransfers = loadTransfers;
 })();

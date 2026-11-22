@@ -83,6 +83,13 @@
         try { data = JSON.parse(ev.data); } catch (err) { return; }
         onEvent("media", data);
       });
+      ["voice", "transfer", "mic-probe"].forEach(function (name) {
+        es.addEventListener(name, function (ev) {
+          var data;
+          try { data = JSON.parse(ev.data); } catch (err) { return; }
+          onEvent(name, data);
+        });
+      });
     }
 
     start();

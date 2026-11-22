@@ -286,3 +286,26 @@ header.top {
   border-color: var(--accent);
   font-weight: 650;
 }
+
+.top-status { display: flex; align-items: center; gap: 0.5rem; }
+#muteBtn { cursor: pointer; background: var(--bg-elev); color: var(--text); }
+#muteBtn.muted { color: var(--warn); border-color: var(--warn); }
+.drop-zone {
+  margin: 0.6rem 0;
+  padding: 0.9rem;
+  border: 0.12rem dashed var(--line);
+  border-radius: 0.7rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.drop-zone.drag { border-color: var(--accent); color: var(--text); background: rgba(61, 143, 209, 0.08); }
+.transfer-list { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.8rem; }
+.transfer-list button {
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.5rem;
+  border: 0.08rem solid var(--line);
+  background: var(--bg-elev);
+  color: var(--text);
+}

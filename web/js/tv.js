@@ -67,6 +67,7 @@
   J.connectEvents(function (type, data) {
     if (type === "reply" && data && data.reply) setReply(data.reply);
     if (type === "media") loadPosters();
+    if (type === "transfer") loadIncoming();
   }, setLive);
 
   J.request("GET", "/api/status", null, function (status, body) {
@@ -75,6 +76,32 @@
       document.title = body.config.hub_name + " Hub — TV";
     }
   });
+
+  function loadIncoming() {
+    var row = J.qs("#incomingRow");
+    var section = J.qs("#incomingSection");
+    if (!row || !section) return;
+    J.request("GET", "/api/transfers", null, function (status, body) {
+      var items = (body && body.items) || [];
+      row.innerHTML = "";
+      section.hidden = items.length === 0;
+      for (var i = 0; i < items.length; i++) {
+        (function (item) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "tile focusable";
+          btn.textContent = item.filename || "file";
+          btn.addEventListener("click", function () {
+            J.request("POST", "/api/transfers/" + item.public_id + "/play", {}, function (st, resp) {
+              if (resp && resp.reply) setReply(resp.reply);
+            });
+          });
+          row.appendChild(btn);
+        })(items[i]);
+      }
+    });
+  }
+  loadIncoming();
 
   function loadPosters() {
     J.request("GET", "/api/media?limit=12", null, function (status, body) {
