@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f16">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Jarvis">
+  <title>Jarvis Hub</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/phone.css">
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">J</div>
+        <div>
+          <h1 id="hubName">Jarvis</h1>
+          <p class="sub">Household hub</p>
+        </div>
+      </div>
+      <div id="conn" class="status-pill" role="status">
+        <span class="dot"></span>
+        <span id="connLabel">Connecting</span>
+      </div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button type="button" role="tab" id="tab-chat" aria-selected="true" aria-controls="panel-chat">Chat</button>
+      <button type="button" role="tab" id="tab-media" aria-selected="false" aria-controls="panel-media">Library</button>
+    </nav>
+
+    <section class="panel active" id="panel-chat" role="tabpanel">
+      <p class="mic-note" id="micNote"></p>
+      <div class="log" id="log" aria-live="polite"></div>
+    </section>
+
+    <section class="panel" id="panel-media" role="tabpanel" hidden>
+      <div class="search-row">
+        <label class="sr-only" for="mediaQ">Search movies</label>
+        <input type="search" id="mediaQ" placeholder="Search titles" autocomplete="off">
+        <button type="button" id="rescanBtn">Rescan</button>
+      </div>
+      <div id="mediaEmpty" class="empty" hidden>No titles indexed yet. Add folders to media_paths and rescan.</div>
+      <div class="grid" id="mediaGrid"></div>
+    </section>
+  </div>
+
+  <form class="composer" id="composer">
+    <div class="composer-inner">
+      <label class="sr-only" for="cmd">Command</label>
+      <input type="text" id="cmd" placeholder="Ask Jarvis…" autocomplete="off" enterkeyhint="send">
+      <button type="button" class="icon-btn" id="micBtn" title="Speak" aria-label="Speak">mic</button>
+      <button type="submit" class="icon-btn primary" title="Send" aria-label="Send">go</button>
+    </div>
+  </form>
+
+  <div class="detail" id="detail" hidden>
+    <div class="detail-card" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <h2 id="detailTitle"></h2>
+      <p class="year" id="detailYear"></p>
+      <p id="detailPlot"></p>
+      <div class="detail-actions">
+        <button type="button" class="primary" id="detailPlay">Play on TV (stub)</button>
+        <button type="button" id="detailClose">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/phone.js"></script>
+</body>
+</html>

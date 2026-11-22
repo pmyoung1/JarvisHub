@@ -1,0 +1,16 @@
+{
+  "name": "Jarvis Hub",
+  "short_name": "Jarvis",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0f16",
+  "theme_color": "#0b0f16",
+  "icons": [
+    {
+      "src": "/img/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

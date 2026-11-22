@@ -1,0 +1,44 @@
+/* Shared tokens. No external fonts or CDNs. */
+:root {
+  --bg: #0b0f16;
+  --bg-elev: #141b26;
+  --bg-elev-2: #1b2433;
+  --line: #2a3548;
+  --text: #e8eef7;
+  --muted: #8aa0b8;
+  --accent: #4ec2ff;
+  --accent-dim: #1c4e72;
+  --ok: #5bd4a4;
+  --warn: #f0c14b;
+  --danger: #ef6b6b;
+  --focus: #ffe08a;
+  --radius: 14px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+}
+a { color: var(--accent); }
+img { max-width: 100%; height: auto; display: block; }
+button, input, textarea {
+  font-family: inherit;
+  color: inherit;
+}
+button { cursor: pointer; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0f16">
+  <title>Jarvis Hub — TV</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/tv.css">
+</head>
+<body>
+  <div class="tv-app">
+    <header class="tv-header">
+      <div class="tv-brand">
+        <div class="tv-mark">J</div>
+        <h1 id="hubName">Jarvis</h1>
+      </div>
+      <div class="tv-meta">
+        <div class="clock" id="clock">--:--</div>
+        <div id="live" class="live off">Connecting</div>
+      </div>
+    </header>
+
+    <div class="tv-actions" id="quickActions">
+      <button type="button" class="tile focusable primary" data-cmd="hello" id="firstTile">Hello</button>
+      <button type="button" class="tile focusable" data-cmd="help">Help</button>
+      <button type="button" class="tile focusable" data-cmd="what time is it">Time</button>
+      <button type="button" class="tile focusable" data-cmd="status">Status</button>
+      <button type="button" class="tile focusable" data-cmd="list movies">Movies</button>
+    </div>
+
+    <div class="reply-box" id="replyBox">
+      <div class="label">Reply</div>
+      <div id="replyText">Use the arrows to move, Enter to select. The Tizen browser has no microphone here — type a command or pick a tile.</div>
+    </div>
+
+    <form class="tv-compose" id="composer">
+      <input class="focusable" type="text" id="cmd" placeholder="Type a command, then Send" autocomplete="off">
+      <button type="submit" class="tile send-tile focusable">Send</button>
+    </form>
+
+    <section class="tv-main">
+      <h2 id="libLabel">Library</h2>
+      <div class="poster-row" id="posterRow"></div>
+    </section>
+
+    <div class="hint">D-pad to move · Enter to select · Back to close a title · Bookmark this page in the Internet app</div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="overlay-card">
+      <h2 id="ovTitle"></h2>
+      <p id="ovMeta"></p>
+      <p id="ovPlot"></p>
+      <div class="overlay-actions">
+        <button type="button" class="tile focusable primary" id="ovPlay">Play on TV (stub)</button>
+        <button type="button" class="tile focusable" id="ovClose">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/tv.js"></script>
+</body>
+</html>
