@@ -1,0 +1,60 @@
+/* 10-foot extras for /tv/mic-probe. Reuses tv.css typography and tiles. */
+.probe-app { overflow: auto; }
+.probe-app .sub {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.lead {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.45;
+  color: var(--text);
+  max-width: 52rem;
+}
+.tv-actions a.tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+.verdict {
+  font-size: 1.2rem;
+  font-weight: 700;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.5rem;
+  border: 0.1rem solid var(--line);
+}
+.verdict.pending { color: var(--muted); }
+.verdict.ok { color: var(--ok); border-color: var(--ok); }
+.verdict.fail { color: var(--warn); border-color: var(--warn); }
+.log {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: auto;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+.log li {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 0.06rem solid var(--line);
+}
+.log li.ok { border-left: 0.18rem solid var(--ok); }
+.log li.fail { border-left: 0.18rem solid var(--warn); }
+.log li.info { border-left: 0.18rem solid var(--accent); }
+.meter-wrap { margin: 0.2rem 0; }
+.meter-label { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.3rem; }
+.meter {
+  height: 0.7rem;
+  border-radius: 0.4rem;
+  background: #1a2230;
+  border: 0.06rem solid var(--line);
+  overflow: hidden;
+}
+.meter-bar {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #3d8fd1, #7ee0ff);
+}

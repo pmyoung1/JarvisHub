@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0f16">
+  <title>Jarvis Hub — TV mic probe</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/tv.css">
+  <link rel="stylesheet" href="/css/mic-probe.css">
+</head>
+<body>
+  <div class="tv-app probe-app">
+    <header class="tv-header">
+      <div class="tv-brand">
+        <div class="tv-mark">J</div>
+        <div>
+          <h1>TV microphone probe</h1>
+          <p class="sub" id="secureLine">Checking this browser…</p>
+        </div>
+      </div>
+      <div class="tv-meta">
+        <div id="verdict" class="verdict pending">Running</div>
+      </div>
+    </header>
+
+    <p class="lead">
+      This page checks whether the Samsung QN75QN800D built-in mic can be used
+      from the TV Internet app. Phones and the Echo Show stay the primary ears.
+      Press Enter or the button to start. Back returns to the TV dashboard.
+    </p>
+
+    <div class="tv-actions">
+      <button type="button" class="tile focusable primary" id="runBtn">Run probe</button>
+      <a class="tile focusable" id="backBtn" href="/tv">Back to TV</a>
+    </div>
+
+    <div class="meter-wrap" id="meterWrap" hidden>
+      <div class="meter-label">Live amplitude</div>
+      <div class="meter"><div class="meter-bar" id="meterBar"></div></div>
+    </div>
+
+    <ol class="log" id="log" aria-live="polite"></ol>
+  </div>
+  <script src="/js/mic-probe.js"></script>
+</body>
+</html>
