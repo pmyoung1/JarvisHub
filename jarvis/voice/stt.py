@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import logging
-import tempfile
 from pathlib import Path
 from typing import Protocol
 
-from jarvis.voice.pcm import SAMPLE_RATE, write_wav
+from jarvis.voice.pcm import SAMPLE_RATE
 
 LOG = logging.getLogger("jarvis.voice.stt")
 
@@ -41,6 +40,8 @@ class FasterWhisperSTT:
     ) -> None:
         from faster_whisper import WhisperModel  # type: ignore[import-not-found]
 
+        if device == "cpu" and "float16" in (compute_type or ""):
+            compute_type = "int8"  # CPUs do not support the GPU-oriented default
         try:
             self._model = WhisperModel(model, device=device, compute_type=compute_type)
             self.name = f"faster-whisper:{model}:{device}"
@@ -53,15 +54,16 @@ class FasterWhisperSTT:
                 raise
 
     def transcribe(self, pcm: bytes, sample_rate: int = SAMPLE_RATE) -> str:
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            tmp_path = Path(tmp.name)
-        try:
-            write_wav(tmp_path, pcm, sample_rate)
-            segments, _info = self._model.transcribe(str(tmp_path), language="en", vad_filter=True)
-            parts = [seg.text.strip() for seg in segments if getattr(seg, "text", "").strip()]
-            return " ".join(parts).strip()
-        finally:
-            tmp_path.unlink(missing_ok=True)
+        import numpy as np
+
+        # Hand faster-whisper a float32 array directly: no temp WAV, and no
+        # dependency on PyAV's file decoding (which is picky about versions).
+        if sample_rate != SAMPLE_RATE:
+            raise ValueError(f"expected {SAMPLE_RATE} Hz PCM, got {sample_rate}")
+        audio = np.frombuffer(pcm[: len(pcm) - (len(pcm) % 2)], dtype=np.int16).astype(np.float32) / 32768.0
+        segments, _info = self._model.transcribe(audio, language="en", vad_filter=True)
+        parts = [seg.text.strip() for seg in segments if getattr(seg, "text", "").strip()]
+        return " ".join(parts).strip()
 
 
 class VoskSTT:
@@ -92,24 +94,18 @@ class VoskSTT:
 
 def build_transcriber(engine: str, model: str, device: str, compute_type: str) -> Transcriber:
     engine = (engine or "faster-whisper").lower()
+    errors: list[str] = []
     if engine in {"faster-whisper", "whisper", "auto"}:
         try:
             return FasterWhisperSTT(model=model or "small", device=device or "cuda", compute_type=compute_type or "int8_float16")
         except Exception as exc:  # noqa: BLE001
+            errors.append(f"faster-whisper: {exc}")
             LOG.warning("faster-whisper unavailable: %s", exc)
-            if engine != "auto":
-                # Still try Vosk as a last-resort CPU fallback when auto or when whisper failed.
-                pass
     if engine in {"vosk", "auto", "faster-whisper", "whisper"}:
+        # Vosk needs a local model directory, so it is only a real fallback when voice.stt_model points at one.
         try:
             return VoskSTT(model_path=model if engine == "vosk" else "")
         except Exception as exc:  # noqa: BLE001
+            errors.append(f"vosk: {exc}")
             LOG.warning("Vosk unavailable: %s", exc)
-            if engine == "vosk":
-                return UnavailableSTT(str(exc))
-    if engine == "vosk":
-        try:
-            return VoskSTT(model_path=model)
-        except Exception as exc:  # noqa: BLE001
-            return UnavailableSTT(str(exc))
-    return UnavailableSTT(f"no STT engine available ({engine})")
+    return UnavailableSTT("; ".join(errors) or f"no STT engine available ({engine})")
