@@ -12,6 +12,8 @@ reports would_play instead of pretending the TV started playback.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import logging
 import subprocess
 from typing import Any, Protocol
@@ -265,6 +267,39 @@ class DlnaController:
     def set_volume(self, level: int) -> dict[str, Any]:
         del level
         return _unsupported(self.name, "set_volume")
+
+
+
+def resolve_tv_controller_name(tv_config: dict[str, Any] | None = None, *, log: Any | None = None) -> str:
+    """Pick a controller name from config.
+
+    Treats null / "null" / "none" / "" as unset. When unset, auto-selects
+    ``root`` if ``root_exe_path`` (or exe) points at an existing file.
+    Never raises.
+    """
+    tv = dict(tv_config or {})
+    raw = tv.get("controller")
+    if raw is None:
+        key = ""
+    else:
+        key = str(raw).strip().lower()
+    if key in {"", "null", "none", "off"}:
+        opts = dict(tv.get("controller_options") or {})
+        exe = str(tv.get("root_exe_path") or tv.get("exe") or opts.get("root_exe_path") or opts.get("exe") or "").strip()
+        if exe and Path(exe).is_file():
+            if log is not None:
+                try:
+                    log.info("[tv] auto-selected controller=root (found %s)", exe)
+                except Exception:  # noqa: BLE001
+                    pass
+            return "root"
+        if exe and log is not None:
+            try:
+                log.info("[tv] controller unset; root exe not found at %s - using null", exe)
+            except Exception:  # noqa: BLE001
+                pass
+        return "null"
+    return key
 
 
 def build_tv_controller(

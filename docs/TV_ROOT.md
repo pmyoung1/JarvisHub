@@ -1,5 +1,7 @@
 # Samsung TV root integration (phase 2 ↔ 3 bridge)
 
+If `tv.controller` is missing, JSON `null`, or the string `"null"`/`"none"`/`""`, and `tv.root_exe_path` (or `tv_root_exe_path`) points at an existing `samsung-tv-root.exe`, the hub **auto-selects** `root` at startup and logs `[tv] auto-selected controller=root`. Otherwise it stays on the null stub and logs `[tv] controller unset; root exe not found ...`.
+
 This is how Jarvis Hub talks to a **already-rooted** Samsung TV through
 [`samsung-tv-root`](https://github.com/chris-ritsen/samsung-tv-root) `archive-root`.
 It is **not** a root exploit. The Hub PC at this household already has a working

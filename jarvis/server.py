@@ -30,7 +30,7 @@ from jarvis.router import build_default_router
 from jarvis.specialists.grok import GrokSpecialist
 from jarvis.transfers import TransferStore
 from jarvis.tts_service import TtsService, TtsUnavailable
-from jarvis.tv import build_tv_controller
+from jarvis.tv import NullController, build_tv_controller, resolve_tv_controller_name
 
 WEB_ROOT = Path(__file__).resolve().parent.parent / "web"
 STARTED_AT = time.time()
@@ -65,6 +65,38 @@ class HubHandler(BaseHTTPRequestHandler):
             LOG.info("%s - " + fmt, self.address_string(), *args)
         else:
             super().log_message(fmt, *args)
+
+
+    def _body_consumed(self) -> bool:
+        return bool(getattr(self, "_jarvis_body_consumed", False))
+
+    def _mark_body_consumed(self) -> None:
+        self._jarvis_body_consumed = True
+
+    def _drain_body(self) -> None:
+        """Consume any unread request body so keep-alive does not leak into the next request.
+
+        Classic symptom when this is skipped: Bad request syntax like
+        ``{"text":"..."}POST /api/command``.
+        """
+        if self._body_consumed():
+            return
+        self._mark_body_consumed()
+        try:
+            length = int(self.headers.get("Content-Length") or "0")
+        except (TypeError, ValueError):
+            length = 0
+        if length <= 0:
+            return
+        try:
+            remaining = length
+            while remaining > 0:
+                chunk = self.rfile.read(min(remaining, 65536))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+        except Exception:  # noqa: BLE001 - connection may already be gone
+            self.close_connection = True
 
     # ---- routing ---------------------------------------------------------
 
@@ -101,6 +133,7 @@ class HubHandler(BaseHTTPRequestHandler):
             self._handle_error()
 
     def do_OPTIONS(self) -> None:  # noqa: N802
+        self._drain_body()
         self.send_response(204)
         self._cors()
         self.send_header("Content-Length", "0")
@@ -229,6 +262,7 @@ class HubHandler(BaseHTTPRequestHandler):
         self._json(200, response.to_dict())
 
     def _events(self) -> None:
+        self._drain_body()
         q = BUS.subscribe()
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -271,6 +305,7 @@ class HubHandler(BaseHTTPRequestHandler):
             return self._send_file(poster, cache=True)
         svg = _placeholder_svg(item.get("title") or "Untitled", item.get("year"))
         data = svg.encode("utf-8")
+        self._drain_body()
         self.send_response(200)
         self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
@@ -316,6 +351,7 @@ class HubHandler(BaseHTTPRequestHandler):
         if length > MIC_PROBE_MAX:
             return self._json(413, {"ok": False, "error": "report exceeds size limit"})
         raw = self.rfile.read(length)
+        self._mark_body_consumed()
         try:
             payload = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -400,6 +436,7 @@ class HubHandler(BaseHTTPRequestHandler):
             return self._json(503, {"ok": False, "error": str(exc)})
         except ValueError as exc:
             return self._json(400, {"ok": False, "error": str(exc)})
+        self._drain_body()
         self.send_response(200)
         self.send_header("Content-Type", "audio/wav")
         self.send_header("Content-Length", str(len(data)))
@@ -468,6 +505,7 @@ class HubHandler(BaseHTTPRequestHandler):
         if length > max_bytes:
             return self._json(413, {"ok": False, "error": "file exceeds max_bytes"})
         body = self.rfile.read(length)
+        self._mark_body_consumed()
         ctype = self.headers.get("Content-Type") or ""
         try:
             if ctype.lower().startswith("multipart/"):
@@ -600,6 +638,7 @@ class HubHandler(BaseHTTPRequestHandler):
         return True
 
     def _send_file(self, path: Path, *, cache: bool) -> None:
+        self._drain_body()
         ctype = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
         if path.suffix.lower() == ".webmanifest":
             ctype = "application/manifest+json"
@@ -623,6 +662,7 @@ class HubHandler(BaseHTTPRequestHandler):
             self._json(400, {"ok": False, "error": "invalid content-length"})
             return None
         raw = self.rfile.read(length) if length else b"{}"
+        self._mark_body_consumed()
         try:
             payload = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -634,6 +674,7 @@ class HubHandler(BaseHTTPRequestHandler):
         return payload
 
     def _json(self, status: int, body: dict[str, Any]) -> None:
+        self._drain_body()
         data = json.dumps(body, ensure_ascii=False, default=str).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -760,11 +801,23 @@ def build_app(cfg: Config) -> tuple[MediaIndex, Pipeline, TransferStore, Any, Mi
         ttl_hours=float(cfg.transfers.get("ttl_hours") or 48),
         allowed_extensions=list(cfg.transfers.get("allowed_extensions") or []),
     )
-    tv = build_tv_controller(
-        str(cfg.tv.get("controller") or "null"),
-        cfg.tv.get("controller_options") or {},
-        tv_config=cfg.tv,
-    )
+    tv_name = resolve_tv_controller_name(cfg.tv, log=LOG)
+    try:
+        tv = build_tv_controller(
+            tv_name,
+            cfg.tv.get("controller_options") or {},
+            tv_config=cfg.tv,
+        )
+        if LOG:
+            try:
+                st = tv.status() if hasattr(tv, "status") else {}
+            except Exception as exc:  # noqa: BLE001
+                st = {"error": str(exc)}
+            LOG.info("[tv] controller=%s status=%s", getattr(tv, "name", tv_name), st)
+    except Exception as exc:  # noqa: BLE001 - never crash hub startup on TV init
+        if LOG:
+            LOG.warning("[tv] controller unavailable: %s - using null", exc)
+        tv = NullController()
     global TTS
     TTS = TtsService(cfg)
     grok = GrokSpecialist.from_config(
