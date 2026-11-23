@@ -169,16 +169,33 @@ class MediaSpecialist(Specialist):
                 "message": "No TV controller is configured.",
             }
         else:
-            if stream_url and hasattr(tv, "play_url"):
-                result = tv.play_url(stream_url, title=_label(match))
-            elif hasattr(tv, "play_path"):
-                result = tv.play_path(str(match.get("path") or ""), title=_label(match))
-            else:
-                result = {"ok": False, "action": "would_play", "error": "TV controller is missing play methods"}
+            try:
+                prefers_path = bool(getattr(tv, "prefers_path", False))
+                path = str(match.get("path") or "")
+                if prefers_path and hasattr(tv, "play_path") and path:
+                    result = tv.play_path(path, title=_label(match))
+                elif stream_url and hasattr(tv, "play_url"):
+                    result = tv.play_url(stream_url, title=_label(match))
+                elif hasattr(tv, "play_path") and path:
+                    result = tv.play_path(path, title=_label(match))
+                else:
+                    result = {"ok": False, "action": "would_play", "error": "TV controller is missing play methods"}
+            except Exception as exc:  # noqa: BLE001 — never crash the request thread
+                result = {
+                    "ok": False,
+                    "action": "would_play",
+                    "controller": getattr(tv, "name", None),
+                    "error": f"TV play failed: {exc}",
+                }
 
         action = str((result or {}).get("action") or "would_play")
-        if action == "playing":
+        err = (result or {}).get("error")
+        if action == "playing" and (result or {}).get("ok", True):
             reply = f"Playing {_label(match)} on the TV."
+            if (result or {}).get("remote"):
+                reply = f"{reply} File on TV: {result['remote']}."
+        elif err:
+            reply = f'I found {_label(match)} but could not start it on the TV: {err}'
         else:
             extra = ""
             if stream_url:
@@ -199,12 +216,12 @@ class MediaSpecialist(Specialist):
             "query": title,
             "stream_url": stream_url,
             "controller": (result or {}).get("controller"),
+            "ok": (result or {}).get("ok"),
         }
         if result:
-            if result.get("error"):
-                data["error"] = result["error"]
-            if result.get("message"):
-                data["message"] = result["message"]
+            for key in ("error", "message", "remote", "play_command", "todo"):
+                if result.get(key):
+                    data[key] = result[key]
         return {"reply": reply, "intent": "media.play", "data": data}
 
 

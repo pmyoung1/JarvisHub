@@ -507,15 +507,19 @@ class HubHandler(BaseHTTPRequestHandler):
         url = self._transfer_stream_url(item)
         title = item.get("filename") or "upload"
         if TV is not None and hasattr(TV, "play_url"):
-            result = TV.play_url(url, title=title)
+            try:
+                result = TV.play_url(url, title=title)
+            except Exception as exc:  # noqa: BLE001
+                result = {"ok": False, "action": "would_play", "error": str(exc), "url": url, "title": title}
         else:
             result = {"ok": True, "action": "would_play", "url": url, "title": title}
         action = result.get("action") or "would_play"
-        reply = (
-            f"Playing {title} on the TV."
-            if action == "playing"
-            else f"I would play {title} on the TV. A stream URL is ready."
-        )
+        if action == "playing" and result.get("ok", True):
+            reply = f"Playing {title} on the TV."
+        elif result.get("error"):
+            reply = f"Could not play {title} on the TV: {result['error']}"
+        else:
+            reply = f"I would play {title} on the TV. A stream URL is ready."
         payload = {"reply": reply, "intent": "transfer.play", "data": {"item": self._public_transfer(item), **result}}
         BUS.publish("reply", payload)
         self._json(200, {"ok": True, **payload})

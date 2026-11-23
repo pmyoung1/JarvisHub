@@ -8,6 +8,7 @@ from jarvis.specialists.base import Specialist
 from jarvis.specialists.core import CoreSpecialist
 from jarvis.specialists.grok import GrokSpecialist
 from jarvis.specialists.media import MediaSpecialist
+from jarvis.specialists.tv import TvSpecialist
 
 
 class Router:
@@ -55,7 +56,7 @@ class Router:
             "reply": (
                 "I don't have a specialist for that yet. "
                 "Try hello, help, status, list movies, find <title>, "
-                "or play <title> on the tv."
+                "play <title> on the tv, tv on, tv off, or switch input."
             ),
             "intent": "unknown",
             "data": {"text": text},
@@ -80,6 +81,7 @@ def build_default_router(
     return Router(
         [
             CoreSpecialist(),
+            TvSpecialist(tv=tv),
             media,
             grok_specialist,
         ]

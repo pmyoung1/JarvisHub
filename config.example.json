@@ -6,7 +6,7 @@
   "data_dir": "data",
   "media_paths": [
     "D:\\Movies",
-    "E:\\Media\\Films"
+    "E:\\"
   ],
   "auth_token": "",
   "auth_tokens": {
@@ -64,9 +64,13 @@
     "history_turns": 8,
     "provider_tools": false
   },
+  "tv_ip": "10.0.0.7",
+  "tv_sdb_path": "C:\\sdb\\data\\tools\\sdb.exe",
+  "tv_root_exe_path": "C:\\samsung-tv-root-release\\samsung-tv-root-0.0.13-windows-x86_64\\samsung-tv-root.exe",
+  "tv_runtime": "6.0",
   "tv": {
     "controller": "null",
-    "ip": "",
+    "ip": "10.0.0.7",
     "mac": "",
     "token_file": "data/tv/samsung_token.txt",
     "port": 8002,
@@ -77,7 +81,10 @@
       "endpoint": "",
       "direct_hdmi_keys": false
     },
-    "stream_token_ttl_seconds": 300
+    "stream_token_ttl_seconds": 300,
+    "sdb_path": "C:\\sdb\\data\\tools\\sdb.exe",
+    "root_exe_path": "C:\\samsung-tv-root-release\\samsung-tv-root-0.0.13-windows-x86_64\\samsung-tv-root.exe",
+    "runtime": "6.0"
   },
   "transfers": {
     "dir": "data/transfers",

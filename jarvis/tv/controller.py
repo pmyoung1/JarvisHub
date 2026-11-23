@@ -280,8 +280,29 @@ def build_tv_controller(
         merged = {k: v for k, v in (tv_config or {}).items() if k not in {"controller", "controller_options"}}
         merged.update(options or {})
         return SamsungTVController(merged)
-    if key in {"samsung-tv-root", "samsung_tv_root", "root"}:
+    if key in {"samsung-tv-root-hook", "root-hook", "root_hook"}:
+        # Legacy phase-2 command/endpoint hook (kept for tests and external scripts).
         return SamsungTvRootController(options)
+    if key in {"samsung-tv-root", "samsung_tv_root", "root", "archive-root", "archive_root"}:
+        opts = dict(options or {})
+        # Old phase-2 hook: only a shell command or HTTP endpoint, no root exe.
+        if (opts.get("command") or opts.get("endpoint")) and not (
+            opts.get("exe") or opts.get("root_exe_path") or (tv_config or {}).get("root_exe_path")
+        ):
+            return SamsungTvRootController(opts)
+        from jarvis.tv.root import ArchiveRootController
+
+        merged = {k: v for k, v in (tv_config or {}).items() if k not in {"controller", "controller_options"}}
+        merged.update(opts)
+        key_sender = None
+        if merged.get("ip") and merged.get("use_samsungtvws_keys", True):
+            try:
+                from jarvis.tv.samsung import SamsungTVController
+
+                key_sender = SamsungTVController(merged)
+            except Exception:  # noqa: BLE001
+                key_sender = None
+        return ArchiveRootController(merged, key_sender=key_sender)
     if key in {"dlna", "upnp"}:
         return DlnaController(options)
     if key in {"null", "none", "off", ""}:

@@ -103,8 +103,8 @@ class CoreSpecialist(Specialist):
             f"I'm {name}. You can type or speak commands"
             f"{' (optionally starting with ' + wake + ',)' if wake else ''}. "
             "Try: hello; what time is it; what's the date; status; "
-            "list movies; find inception; play inception on the tv. "
-            "Movie playback is prepared in phase 1 but not sent to the TV yet."
+            "list movies; find inception; play inception on the tv; "
+            "tv on; tv off; switch input / next input / source menu."
         )
         return {
             "reply": reply,
@@ -119,6 +119,11 @@ class CoreSpecialist(Specialist):
                     "list movies",
                     "find <title>",
                     "play <title> on the tv",
+                    "tv on",
+                    "tv off",
+                    "switch input",
+                    "next input",
+                    "source menu",
                 ]
             },
         }

@@ -67,17 +67,25 @@ DEFAULTS: dict[str, Any] = {
         "history_turns": 8,
         "provider_tools": False,
     },
+    # Top-level TV shortcuts (also accepted; merged into the tv block below).
+    "tv_ip": "10.0.0.7",
+    "tv_sdb_path": r"C:\sdb\data\tools\sdb.exe",
+    "tv_root_exe_path": r"C:\samsung-tv-root-release\samsung-tv-root-0.0.13-windows-x86_64\samsung-tv-root.exe",
+    "tv_runtime": "6.0",
     "tv": {
         "controller": "null",
         "controller_options": {},
         "stream_token_ttl_seconds": 300,
-        # Used by tv.controller = "samsungtvws" (phase 2 stub; see docs/TV_CONTROL.md)
+        # Used by tv.controller = "samsungtvws" | "root" (see docs/TV_CONTROL.md, docs/TV_ROOT.md)
         "ip": "",
         "mac": "",
         "token_file": "data/tv/samsung_token.txt",
         "port": 8002,
         "name": "JarvisHub",
         "broadcast": "255.255.255.255",
+        "sdb_path": r"C:\sdb\data\tools\sdb.exe",
+        "root_exe_path": r"C:\samsung-tv-root-release\samsung-tv-root-0.0.13-windows-x86_64\samsung-tv-root.exe",
+        "runtime": "6.0",
     },
     "transfers": {
         "dir": "data/transfers",
@@ -131,6 +139,39 @@ class Config:
         self.grok: dict[str, Any] = dict(merged.get("grok") or {})
         self.tv: dict[str, Any] = dict(merged.get("tv") or {})
         self.tv["token_file"] = str(_resolve_path(self.tv.get("token_file") or "data/tv/samsung_token.txt"))
+        # Top-level tv_ip / tv_sdb_path / tv_root_exe_path / tv_runtime win when set,
+        # otherwise fill empty nested keys from those defaults (and vice versa).
+        top_ip = str(merged.get("tv_ip") or "").strip()
+        top_sdb = str(merged.get("tv_sdb_path") or "").strip()
+        top_exe = str(merged.get("tv_root_exe_path") or "").strip()
+        top_runtime = str(merged.get("tv_runtime") or "").strip()
+        if top_ip:
+            self.tv["ip"] = top_ip
+        if top_sdb:
+            self.tv["sdb_path"] = top_sdb
+        if top_exe:
+            self.tv["root_exe_path"] = top_exe
+        if top_runtime:
+            self.tv["runtime"] = top_runtime
+        # Mirror nested values back out for code that reads the top-level names.
+        self.tv_ip = str(self.tv.get("ip") or top_ip or "").strip()
+        self.tv_sdb_path = str(self.tv.get("sdb_path") or top_sdb or "").strip()
+        self.tv_root_exe_path = str(self.tv.get("root_exe_path") or top_exe or "").strip()
+        self.tv_runtime = str(self.tv.get("runtime") or top_runtime or "6.0").strip()
+        # controller_options inherit the resolved paths so ArchiveRootController sees them.
+        opts = dict(self.tv.get("controller_options") or {})
+        opts.setdefault("ip", self.tv_ip)
+        opts.setdefault("sdb", self.tv_sdb_path)
+        opts.setdefault("sdb_path", self.tv_sdb_path)
+        opts.setdefault("exe", self.tv_root_exe_path)
+        opts.setdefault("root_exe_path", self.tv_root_exe_path)
+        opts.setdefault("runtime", self.tv_runtime)
+        opts.setdefault("mac", str(self.tv.get("mac") or "").strip())
+        opts.setdefault("broadcast", str(self.tv.get("broadcast") or "255.255.255.255"))
+        opts.setdefault("token_file", str(self.tv.get("token_file") or ""))
+        opts.setdefault("port", int(self.tv.get("port") or 8002))
+        opts.setdefault("name", str(self.tv.get("name") or "JarvisHub"))
+        self.tv["controller_options"] = opts
         self.transfers: dict[str, Any] = dict(merged.get("transfers") or {})
         self.transfers["dir"] = str(_resolve_path(self.transfers.get("dir") or "data/transfers"))
         self.auth_tokens: dict[str, str] = {
@@ -169,6 +210,7 @@ class Config:
             "auth_required": bool(self.auth_token) or any(self.auth_tokens.values()),
             "grok_configured": bool(os.environ.get(str(self.grok.get("api_key_env") or "XAI_API_KEY"))),
             "tv_controller": str(self.tv.get("controller") or "null"),
+            "tv_ip": self.tv_ip or None,
         }
 
 
