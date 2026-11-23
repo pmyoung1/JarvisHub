@@ -1,0 +1,76 @@
+/* Jarvis orbs. Blue = you speaking (mic), orange = Jarvis talking (talkback).
+   Radial gradients only; scale is driven by js/orbs.js (sine-eased). */
+.orb-dock {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 0.6rem 0.2rem 0.4rem;
+  flex-wrap: wrap;
+}
+.orb-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 4.6rem;
+}
+.orb {
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 50%;
+  will-change: transform, opacity;
+  transition: box-shadow 0.25s ease;
+}
+.orb-blue {
+  background:
+    radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 24%),
+    radial-gradient(circle at 50% 50%, #8fd8ff 0%, #2f9bff 42%, #1747b8 78%, rgba(23, 71, 184, 0.55) 100%);
+  box-shadow: 0 0 0.9rem rgba(47, 155, 255, 0.35);
+}
+.orb-orange {
+  background:
+    radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 24%),
+    radial-gradient(circle at 50% 50%, #ffd08a 0%, #ff9a2e 42%, #c4510a 78%, rgba(196, 81, 10, 0.55) 100%);
+  box-shadow: 0 0 0.9rem rgba(255, 154, 46, 0.35);
+}
+.orb-blue.is-active { box-shadow: 0 0 2rem 0.3rem rgba(47, 155, 255, 0.6); }
+.orb-orange.is-active { box-shadow: 0 0 2rem 0.3rem rgba(255, 154, 46, 0.6); }
+.orb-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.orb-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 12rem;
+}
+.orb-btn {
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.8rem;
+}
+.orb-btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.orb-note {
+  flex-basis: 100%;
+  min-height: 1em;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* TV: bigger orbs, bigger focus targets. */
+.orb-dock-tv { gap: 2rem; padding: 0.5rem 0 1rem; }
+.orb-dock-tv .orb-slot { width: 7rem; }
+.orb-dock-tv .orb { width: 5.2rem; height: 5.2rem; }
+.orb-dock-tv .orb-label { font-size: 0.95rem; }
+.orb-dock-tv .orb-btn { font-size: 1.15rem; padding: 0.7rem 1.4rem; }
+.orb-dock-tv .orb-note { font-size: 1rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .orb { transition: none; }
+}

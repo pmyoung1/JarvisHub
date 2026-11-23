@@ -11,6 +11,7 @@
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/css/phone.css">
+  <link rel="stylesheet" href="/css/orbs.css">
 </head>
 <body>
   <div class="app">
@@ -37,6 +38,8 @@
     </nav>
 
     <section class="panel active" id="panel-chat" role="tabpanel">
+      <div id="orbDock" class="orb-dock" aria-label="Voice activity"></div>
+      <audio id="talkbackAudio" preload="none"></audio>
       <p class="mic-note" id="micNote"></p>
       <div class="log" id="log" aria-live="polite"></div>
     </section>
@@ -76,6 +79,7 @@
   </div>
 
   <script src="/js/common.js"></script>
+  <script src="/js/orbs.js"></script>
   <script src="/js/phone.js"></script>
 </body>
 </html>

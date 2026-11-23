@@ -64,7 +64,13 @@
     if (btn && btn.getAttribute("data-cmd")) send(btn.getAttribute("data-cmd"));
   });
 
+  if (window.JarvisOrbs) window.JarvisOrbs.init({ dockId: "orbDock", clientId: clientId, tv: true });
+
   J.connectEvents(function (type, data) {
+    if (window.JarvisOrbs) {
+      if (type === "voice") window.JarvisOrbs.onVoice(data);
+      if (type === "reply") window.JarvisOrbs.onReply(data);
+    }
     if (type === "reply" && data && data.reply) setReply(data.reply);
     if (type === "media") loadPosters();
     if (type === "transfer") loadIncoming();

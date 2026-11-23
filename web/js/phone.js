@@ -62,7 +62,13 @@
     });
   });
 
+  if (window.JarvisOrbs) window.JarvisOrbs.init({ dockId: "orbDock", clientId: clientId });
+
   J.connectEvents(function (type, data) {
+    if (window.JarvisOrbs) {
+      if (type === "voice") window.JarvisOrbs.onVoice(data);
+      if (type === "reply") window.JarvisOrbs.onReply(data);
+    }
     if (type === "reply") applyReply(data);
     if (type === "media") loadMedia(mediaQ.value || "");
     if (type === "voice" && window._jarvisApplyVoice) window._jarvisApplyVoice(data);

@@ -8,6 +8,7 @@
   <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/css/tv.css">
+  <link rel="stylesheet" href="/css/orbs.css">
 </head>
 <body>
   <div class="tv-app">
@@ -30,6 +31,9 @@
       <button type="button" class="tile focusable" data-cmd="list movies">Movies</button>
       <a class="tile focusable" href="/tv/mic-probe">Mic probe</a>
     </div>
+
+    <div id="orbDock" class="orb-dock orb-dock-tv" aria-label="Voice activity"></div>
+    <audio id="talkbackAudio" preload="none"></audio>
 
     <div class="reply-box" id="replyBox">
       <div class="label">Reply</div>
@@ -67,6 +71,7 @@
   </div>
 
   <script src="/js/common.js"></script>
+  <script src="/js/orbs.js"></script>
   <script src="/js/tv.js"></script>
 </body>
 </html>
