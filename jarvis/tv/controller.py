@@ -1,8 +1,8 @@
 """TV playback controllers for phase 2.
 
-Power on/off and HDMI input switching belong in phase 3 (samsungtvws) and
-must not be added here. This module only covers launching a local-library
-stream or file path on the TV, plus pause/resume/stop/volume hooks.
+This module covers launching a local-library stream or file path on the TV,
+plus pause/resume/stop/volume hooks. Power on/off and HDMI input switching
+live in jarvis/tv/samsung.py (samsungtvws stub) and jarvis/tv/wol.py.
 
 SamsungTvRootController is a configured-command hook for the external
 samsung-tv-root project. Until that project is installed and
@@ -267,8 +267,19 @@ class DlnaController:
         return _unsupported(self.name, "set_volume")
 
 
-def build_tv_controller(name: str, options: dict[str, Any] | None = None) -> TVController:
+def build_tv_controller(
+    name: str,
+    options: dict[str, Any] | None = None,
+    tv_config: dict[str, Any] | None = None,
+) -> TVController:
+    """tv_config is the whole `tv` config block (ip, mac, token_file, ...) for samsungtvws."""
     key = (name or "null").strip().lower()
+    if key in {"samsungtvws", "samsung", "samsung-ws", "samsung_tv_ws"}:
+        from jarvis.tv.samsung import SamsungTVController  # lazy: keeps the package import light
+
+        merged = {k: v for k, v in (tv_config or {}).items() if k not in {"controller", "controller_options"}}
+        merged.update(options or {})
+        return SamsungTVController(merged)
     if key in {"samsung-tv-root", "samsung_tv_root", "root"}:
         return SamsungTvRootController(options)
     if key in {"dlna", "upnp"}:

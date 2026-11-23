@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 from typing import Protocol
 
@@ -37,18 +38,30 @@ class NullSpeaker:
 class PiperSpeaker:
     name = "piper"
 
-    def __init__(self, voice: str, voices_dir: Path, output_device: str = "") -> None:
+    def __init__(
+        self,
+        voice: str,
+        voices_dir: Path,
+        output_device: str = "",
+        model_path: str | Path = "",
+    ) -> None:
         self.voice = voice or "en_US-lessac-medium"
         self.voices_dir = Path(voices_dir)
         self.output_device = output_device or ""
-        self.onnx = self.voices_dir / f"{self.voice}.onnx"
-        self.config = self.voices_dir / f"{self.voice}.onnx.json"
+        if model_path:
+            # Explicit .onnx path (config voice.tts_model_path) wins over voice + voices_dir.
+            self.onnx = Path(model_path)
+            self.voice = self.onnx.name[: -len(".onnx")] if self.onnx.name.endswith(".onnx") else self.onnx.stem
+        else:
+            self.onnx = self.voices_dir / f"{self.voice}.onnx"
+        self.config = self.onnx.with_name(self.onnx.name + ".json")
         if not self.onnx.is_file():
             raise FileNotFoundError(
-                f"Piper voice not found at {self.onnx}. Run scripts/install_voice_agent.ps1 "
-                "or python -m jarvis.voice.enroll --download-voice"
+                f"Piper voice not found at {self.onnx}. Download it (see docs/INSTALL_WINDOWS.md) "
+                "or run python -m jarvis.voice.enroll --download-voice"
             )
         self._piper = None
+        self._bin = None
         try:
             from piper import PiperVoice  # type: ignore[import-not-found]
 
@@ -59,8 +72,7 @@ class PiperSpeaker:
             if not self._bin:
                 raise RuntimeError(f"piper Python package and piper binary both unavailable: {exc}") from exc
             LOG.info("Using piper executable at %s", self._bin)
-        else:
-            self._bin = None
+        self._lock = threading.Lock()
         self.name = f"piper:{self.voice}"
 
     def speak(self, text: str) -> None:
@@ -70,20 +82,27 @@ class PiperSpeaker:
         finally:
             wav_path.unlink(missing_ok=True)
 
+    def synthesize_wav_bytes(self, text: str) -> bytes:
+        """Render text to WAV bytes (used by the hub's GET /api/tts)."""
+        wav_path = self._synthesize(text)
+        try:
+            return wav_path.read_bytes()
+        finally:
+            wav_path.unlink(missing_ok=True)
+
     def _synthesize(self, text: str) -> Path:
         fd, raw = tempfile.mkstemp(suffix=".wav")
         os.close(fd)
         path = Path(raw)
         if self._piper is not None:
-            with path.open("wb") as out:
-                # piper-tts 1.x uses synthesize or synthesize_wav depending on version
-                if hasattr(self._piper, "synthesize_wav"):
-                    self._piper.synthesize_wav(text, out)
-                else:
-                    import wave
+            import wave
 
-                    with wave.open(out, "wb") as wf:
-                        self._piper.synthesize(text, wf)
+            with self._lock, wave.open(str(path), "wb") as wf:
+                # piper-tts >= 1.3 has synthesize_wav(text, wave_file); 1.2 wrote via synthesize(text, wave_file).
+                if hasattr(self._piper, "synthesize_wav"):
+                    self._piper.synthesize_wav(text, wf)
+                else:
+                    self._piper.synthesize(text, wf)
             return path
         cmd = [self._bin, "--model", str(self.onnx), "--output_file", str(path)]
         if self.config.is_file():
@@ -93,25 +112,81 @@ class PiperSpeaker:
 
 
 class SapiSpeaker:
+    """Windows SAPI through pyttsx3 (espeak/nsss on other platforms)."""
+
     name = "sapi"
 
     def __init__(self, output_device: str = "") -> None:
         import pyttsx3  # type: ignore[import-not-found]
 
         self._engine = pyttsx3.init()
-        if output_device:
-            try:
-                for dev in self._engine.getProperty("voices") or []:
-                    pass
-                del dev
-            except Exception:  # noqa: BLE001
-                pass
+        # pyttsx3 cannot target a specific output device; output_device applies to Piper only.
         self.output_device = output_device
+        self._lock = threading.Lock()
         self.name = "sapi:pyttsx3"
 
     def speak(self, text: str) -> None:
-        self._engine.say(text)
-        self._engine.runAndWait()
+        with self._lock:
+            self._engine.say(text)
+            self._engine.runAndWait()
+
+    def synthesize_wav_bytes(self, text: str) -> bytes:
+        fd, raw = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        path = Path(raw)
+        try:
+            with self._lock:
+                self._engine.save_to_file(text, str(path))
+                self._engine.runAndWait()
+            data = path.read_bytes()
+            if not data:
+                raise RuntimeError("pyttsx3 produced an empty file")
+            return data
+        finally:
+            path.unlink(missing_ok=True)
+
+
+_SAPI_PS = (
+    "Add-Type -AssemblyName System.Speech; "
+    "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+    "$s.SetOutputToWaveFile($env:JARVIS_TTS_OUT); "
+    "$s.Speak($env:JARVIS_TTS_TEXT); $s.Dispose()"
+)
+
+
+class SapiPowerShellSynth:
+    """Windows built-in SAPI via System.Speech in a PowerShell child process.
+
+    Needs no Python packages and works from the SYSTEM boot service (no
+    audio device is touched; it only writes a WAV file). Windows only.
+    """
+
+    name = "sapi:powershell"
+
+    def __init__(self, exe: str = "") -> None:
+        self.exe = exe or shutil.which("powershell") or shutil.which("powershell.exe") or ""
+        if os.name != "nt" or not self.exe:
+            raise RuntimeError("Windows PowerShell (System.Speech) is not available on this platform")
+
+    def synthesize_wav_bytes(self, text: str) -> bytes:
+        fd, raw = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        path = Path(raw)
+        env = dict(os.environ, JARVIS_TTS_OUT=str(path), JARVIS_TTS_TEXT=text)
+        try:
+            subprocess.run(
+                [self.exe, "-NoProfile", "-NonInteractive", "-Command", _SAPI_PS],
+                env=env,
+                check=True,
+                timeout=60,
+                capture_output=True,
+            )
+            data = path.read_bytes()
+            if not data:
+                raise RuntimeError("System.Speech produced an empty file")
+            return data
+        finally:
+            path.unlink(missing_ok=True)
 
 
 def play_wav(path: Path, output_device: str = "") -> None:
@@ -148,13 +223,20 @@ def play_wav(path: Path, output_device: str = "") -> None:
     LOG.warning("No audio playback device available; would have spoken from %s", path)
 
 
-def build_speaker(engine: str, voice: str, voices_dir: Path, fallback: str, output_device: str = "") -> Speaker:
+def build_speaker(
+    engine: str,
+    voice: str,
+    voices_dir: Path,
+    fallback: str,
+    output_device: str = "",
+    model_path: str | Path = "",
+) -> Speaker:
     engine = (engine or "piper").lower()
     fallback = (fallback or "sapi").lower()
     errors: list[str] = []
     if engine in {"piper", "auto"}:
         try:
-            return PiperSpeaker(voice=voice, voices_dir=voices_dir, output_device=output_device)
+            return PiperSpeaker(voice=voice, voices_dir=voices_dir, output_device=output_device, model_path=model_path)
         except Exception as exc:  # noqa: BLE001
             errors.append(f"Piper unavailable: {exc}")
             LOG.warning("%s", errors[-1])

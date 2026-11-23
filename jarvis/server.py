@@ -29,6 +29,7 @@ from jarvis.pipeline import CommandRequest, Pipeline
 from jarvis.router import build_default_router
 from jarvis.specialists.grok import GrokSpecialist
 from jarvis.transfers import TransferStore
+from jarvis.tts_service import TtsService, TtsUnavailable
 from jarvis.tv import build_tv_controller
 
 WEB_ROOT = Path(__file__).resolve().parent.parent / "web"
@@ -52,6 +53,7 @@ VOICE_STATE: dict[str, Any] = {
 }
 REQUEST_CTX = threading.local()
 MIC_PROBE: MicProbeStore
+TTS: TtsService | None = None
 
 
 class HubHandler(BaseHTTPRequestHandler):
@@ -152,6 +154,12 @@ class HubHandler(BaseHTTPRequestHandler):
             return self._transfers_upload()
         if method == "GET" and path == "/api/tv/status":
             return self._tv_status()
+        if method in {"GET", "POST"} and path == "/api/tts":
+            return self._tts(method, query)
+        if method == "POST" and path == "/api/tv/power":
+            return self._tv_power()
+        if method == "POST" and path == "/api/tv/input":
+            return self._tv_input()
         if method == "GET" and path == "/api/mic-probe":
             return self._mic_probe_list()
         if method == "POST" and path == "/api/mic-probe":
@@ -204,6 +212,7 @@ class HubHandler(BaseHTTPRequestHandler):
             "sse_clients": BUS.subscriber_count,
             "voice": dict(VOICE_STATE),
             "tv": TV.status() if TV is not None else {"controller": "none"},
+            "tts": TTS.status() if TTS is not None else {"enabled": False},
             "config": CFG.public_view(),
         }
         self._json(200, body)
@@ -367,6 +376,75 @@ class HubHandler(BaseHTTPRequestHandler):
             flag.unlink()
         BUS.publish("voice", dict(VOICE_STATE))
         self._json(200, {"ok": True, **VOICE_STATE})
+
+    def _tts(self, method: str, query: dict[str, list[str]]) -> None:
+        """Talkback: GET /api/tts?text=... or POST {"text": ...} returns audio/wav.
+
+        POST keeps the reply text out of URLs and access logs; GET exists so
+        an <audio src> or curl can use it directly.
+        """
+        if TTS is None:
+            return self._json(503, {"ok": False, "error": "talkback is not initialised"})
+        if method == "POST":
+            payload = self._read_json()
+            if payload is None:
+                return
+            text = str(payload.get("text") or "")
+        else:
+            text = (query.get("text") or [""])[0]
+        if not text.strip():
+            return self._json(400, {"ok": False, "error": "text is required"})
+        try:
+            data, engine = TTS.synthesize(text)
+        except TtsUnavailable as exc:
+            return self._json(503, {"ok": False, "error": str(exc)})
+        except ValueError as exc:
+            return self._json(400, {"ok": False, "error": str(exc)})
+        self.send_response(200)
+        self.send_header("Content-Type", "audio/wav")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Jarvis-TTS-Engine", engine)
+        self.send_header("Access-Control-Expose-Headers", "X-Jarvis-TTS-Engine")
+        self._cors()
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _tv_power(self) -> None:
+        payload = self._read_json()
+        if payload is None:
+            return
+        handler = getattr(TV, "power", None)
+        if not callable(handler):
+            return self._tv_unsupported("power")
+        result = handler(str(payload.get("action") or ""))
+        self._json(200 if result.get("ok") else 502, result)
+
+    def _tv_input(self) -> None:
+        payload = self._read_json()
+        if payload is None:
+            return
+        handler = getattr(TV, "set_input", None)
+        if not callable(handler):
+            return self._tv_unsupported("input")
+        try:
+            times = max(1, min(10, int(payload.get("times") or 1)))
+        except (TypeError, ValueError):
+            times = 1
+        result = handler(str(payload.get("input") or "next"), times=times)
+        self._json(200 if result.get("ok") else 502, result)
+
+    def _tv_unsupported(self, what: str) -> None:
+        name = getattr(TV, "name", "none")
+        self._json(
+            501,
+            {
+                "ok": False,
+                "action": "unsupported",
+                "controller": name,
+                "error": f"TV {what} control is not enabled. Set tv.controller to 'samsungtvws' (and tv.ip / tv.mac) in config.json.",
+            },
+        )
 
     def _tv_status(self) -> None:
         body = TV.status() if TV is not None else {"ok": True, "controller": "none"}
@@ -678,7 +756,13 @@ def build_app(cfg: Config) -> tuple[MediaIndex, Pipeline, TransferStore, Any, Mi
         ttl_hours=float(cfg.transfers.get("ttl_hours") or 48),
         allowed_extensions=list(cfg.transfers.get("allowed_extensions") or []),
     )
-    tv = build_tv_controller(str(cfg.tv.get("controller") or "null"), cfg.tv.get("controller_options") or {})
+    tv = build_tv_controller(
+        str(cfg.tv.get("controller") or "null"),
+        cfg.tv.get("controller_options") or {},
+        tv_config=cfg.tv,
+    )
+    global TTS
+    TTS = TtsService(cfg)
     grok = GrokSpecialist.from_config(
         cfg.grok,
         media_index=index,

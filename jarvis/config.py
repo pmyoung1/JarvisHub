@@ -42,6 +42,7 @@ DEFAULTS: dict[str, Any] = {
         "tts_engine": "piper",
         "tts_voice": "en_US-lessac-medium",
         "tts_voices_dir": "data/voices",
+        "tts_model_path": "",
         "tts_fallback": "sapi",
         "input_device": "",
         "output_device": "",
@@ -51,6 +52,11 @@ DEFAULTS: dict[str, Any] = {
         "command_seconds": 6.0,
         "min_command_seconds": 1.0,
         "client_id": "hub-voice",
+    },
+    "tts": {
+        "enabled": True,
+        "max_chars": 500,
+        "cache_items": 32,
     },
     "grok": {
         "enabled": True,
@@ -65,6 +71,13 @@ DEFAULTS: dict[str, Any] = {
         "controller": "null",
         "controller_options": {},
         "stream_token_ttl_seconds": 300,
+        # Used by tv.controller = "samsungtvws" (phase 2 stub; see docs/TV_CONTROL.md)
+        "ip": "",
+        "mac": "",
+        "token_file": "data/tv/samsung_token.txt",
+        "port": 8002,
+        "name": "JarvisHub",
+        "broadcast": "255.255.255.255",
     },
     "transfers": {
         "dir": "data/transfers",
@@ -111,8 +124,13 @@ class Config:
         self.voice["enrollments_dir"] = str(_resolve_path(self.voice.get("enrollments_dir") or "data/voice/enrollments"))
         self.voice["tts_voices_dir"] = str(_resolve_path(self.voice.get("tts_voices_dir") or "data/voices"))
 
+        model_path = str(self.voice.get("tts_model_path") or "").strip()
+        self.voice["tts_model_path"] = str(_resolve_path(model_path)) if model_path else ""
+
+        self.tts: dict[str, Any] = dict(merged.get("tts") or {})
         self.grok: dict[str, Any] = dict(merged.get("grok") or {})
         self.tv: dict[str, Any] = dict(merged.get("tv") or {})
+        self.tv["token_file"] = str(_resolve_path(self.tv.get("token_file") or "data/tv/samsung_token.txt"))
         self.transfers: dict[str, Any] = dict(merged.get("transfers") or {})
         self.transfers["dir"] = str(_resolve_path(self.transfers.get("dir") or "data/transfers"))
         self.auth_tokens: dict[str, str] = {
