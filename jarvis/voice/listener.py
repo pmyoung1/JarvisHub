@@ -9,6 +9,7 @@ the dashboards (and can be spoken by the phone/TV pages via /api/tts).
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from typing import Any, Callable, Iterator
@@ -16,11 +17,35 @@ from typing import Any, Callable, Iterator
 from jarvis.voice.capture import capture_command
 from jarvis.voice.client import HubClient
 
+
 LOG = logging.getLogger("jarvis.wakeword")
 
 MUTE_POLL_SECONDS = 5.0
 HEARTBEAT_SECONDS = 15.0
 COOLDOWN_SECONDS = 1.5
+
+
+def strip_wake_phrase(text: str, wake_phrase: str = "hey jarvis") -> str:
+    """Remove a leading wake phrase (and optional trailing punctuation) from STT text.
+
+    openWakeWord often leaves "hey jarvis" / "Jarvis" in the transcript, which
+    then pollutes media title matching ("play Jarvis play inception...").
+    """
+    out = (text or "").strip()
+    if not out:
+        return ""
+    phrase = (wake_phrase or "hey jarvis").strip()
+    if phrase:
+        # Leading phrase + optional comma/colon/dash/space.
+        pattern = re.compile(
+            rf"^\s*{re.escape(phrase)}\s*[,:.\-!]?\s*",
+            re.IGNORECASE,
+        )
+        out = pattern.sub("", out, count=1).strip()
+    # If STT only caught "Jarvis ..." (or a leftover after stripping "hey jarvis").
+    out = re.sub(r"^\s*jarvis\s*[,:.\-!]?\s*", "", out, count=1, flags=re.IGNORECASE).strip()
+    return out
+
 
 
 class WakewordListener:
@@ -37,6 +62,7 @@ class WakewordListener:
         min_command_seconds: float = 1.0,
         speaker: Any = None,
         trailing_frames: int = 8,
+        wake_phrase: str = "hey jarvis",
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.wake = wake
@@ -45,6 +71,7 @@ class WakewordListener:
         self.threshold = float(threshold)
         self.source = source
         self.dry_run = dry_run
+        self.wake_phrase = wake_phrase or "hey jarvis"
         self.command_seconds = command_seconds
         self.min_command_seconds = min_command_seconds
         self.speaker = speaker
@@ -83,16 +110,23 @@ class WakewordListener:
             result["error"] = f"stt failed: {exc}"
             LOG.warning("STT failed: %s", exc)
             return result
-        result["transcript"] = transcript
+        result["raw_transcript"] = transcript
+        command_text = strip_wake_phrase(transcript, self.wake_phrase)
+        result["transcript"] = command_text
         if not transcript:
             result["error"] = "empty transcript"
             return result
+        if not command_text:
+            LOG.info("Wake-only transcript %r - skipping POST", transcript)
+            result["error"] = "wake-only"
+            result["ok"] = True  # heard the wake word; nothing to send
+            return result
         if self.dry_run or self.client is None:
-            LOG.info("[dry-run] would POST /api/command text=%r source=%s", transcript, self.source)
+            LOG.info("[dry-run] would POST /api/command text=%r source=%s", command_text, self.source)
             result["ok"] = True
             return result
         try:
-            command = self.client.send_command(transcript, source=self.source)
+            command = self.client.send_command(command_text, source=self.source)
         except Exception as exc:  # noqa: BLE001
             result["error"] = f"hub command failed: {exc}"
             LOG.warning("Hub command failed: %s", exc)
@@ -101,7 +135,7 @@ class WakewordListener:
         result["posted"] = True
         result["ok"] = bool(command.get("ok", True)) and "error" not in command
         reply = str(command.get("reply") or "")
-        LOG.info("Heard %r -> %s", transcript, reply or "(no reply)")
+        LOG.info("Heard %r -> %s", command_text, reply or "(no reply)")
         if reply and self.speaker is not None:
             try:
                 self.speaker.speak(reply)

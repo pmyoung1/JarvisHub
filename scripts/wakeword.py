@@ -190,6 +190,7 @@ def main(argv: list[str] | None = None) -> int:
         command_seconds=float(voice.get("command_seconds") or 6.0),
         min_command_seconds=float(voice.get("min_command_seconds") or 1.0),
         speaker=speaker,
+        wake_phrase=str(voice.get("wake_model") or "hey jarvis"),
     )
 
     def _stop(*_a: object) -> None:

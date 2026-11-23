@@ -18,7 +18,7 @@ if str(ROOT) not in sys.path:
 from jarvis.config import Config
 from jarvis.voice.capture import capture_command
 from jarvis.voice.client import HubClient
-from jarvis.voice.listener import WakewordListener
+from jarvis.voice.listener import WakewordListener, strip_wake_phrase
 from jarvis.voice.lock import ListenerLock
 from jarvis.voice.pcm import SAMPLES_PER_FRAME, sine_pcm
 
@@ -146,6 +146,31 @@ class WakewordListenerTests(unittest.TestCase):
             self.assertIn("processing", states)
             self.assertEqual(states[-1], "offline")
 
+
+    def test_strips_wake_phrase_before_post(self) -> None:
+        with Capture() as hub:
+            listener = WakewordListener(
+                FakeWake(),
+                FakeSTT("hey jarvis play inception on the tv"),
+                HubClient(hub.url, token="t", client_id="wakeword-testpc"),
+                min_command_seconds=0.2,
+            )
+            listener.run(frames_with_wake())
+            cmds = hub.commands()
+            self.assertEqual(len(cmds), 1)
+            self.assertEqual(cmds[0]["body"]["text"], "play inception on the tv")
+            self.assertEqual(listener.last_result["transcript"], "play inception on the tv")
+            self.assertEqual(listener.last_result["raw_transcript"], "hey jarvis play inception on the tv")
+
+    def test_wake_only_transcript_skips_post(self) -> None:
+        with Capture() as hub:
+            listener = WakewordListener(FakeWake(), FakeSTT("Hey Jarvis"), HubClient(hub.url), min_command_seconds=0.2)
+            listener.run(frames_with_wake())
+            self.assertEqual(hub.commands(), [])
+            self.assertEqual(listener.last_result["error"], "wake-only")
+            self.assertTrue(listener.last_result["ok"])
+            self.assertFalse(listener.last_result["posted"])
+
     def test_dry_run_transcribes_but_posts_nothing(self) -> None:
         with Capture() as hub:
             client = HubClient(hub.url, token="t")
@@ -241,6 +266,23 @@ class ListenerLockTests(unittest.TestCase):
         a.release()
         self.assertTrue(b.acquire())
         b.release()
+
+
+
+class StripWakePhraseTests(unittest.TestCase):
+    def test_common_prefixes(self) -> None:
+        self.assertEqual(strip_wake_phrase("hey jarvis play inception on the tv"), "play inception on the tv")
+        self.assertEqual(strip_wake_phrase("Hey Jarvis, play inception"), "play inception")
+        self.assertEqual(strip_wake_phrase("JARVIS play inception"), "play inception")
+        self.assertEqual(strip_wake_phrase("hey jarvis"), "")
+        self.assertEqual(strip_wake_phrase("Hey Jarvis!"), "")
+        self.assertEqual(strip_wake_phrase("play inception on the tv"), "play inception on the tv")
+
+    def test_custom_phrase_and_mid_sentence_untouched(self) -> None:
+        self.assertEqual(strip_wake_phrase("okay google play music", "okay google"), "play music")
+        # Do not strip jarvis in the middle of a title-like phrase after a real command starts.
+        self.assertEqual(strip_wake_phrase("play jarvis returns on the tv"), "play jarvis returns on the tv")
+
 
 
 if __name__ == "__main__":
