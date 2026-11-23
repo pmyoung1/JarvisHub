@@ -27,6 +27,7 @@ phase 1 download. Get `JarvisHub-phase2.zip` or
 | **Orbs (blue mic, orange talkback)** | Blue orb pulses from an AnalyserNode on the mic stream when speech is detected; orange orb pulses from an AnalyserNode on the talkback `<audio>`. Radial gradients, sine-eased scale. Also follows hub SSE `voice` state; degrades with no mic or on plain HTTP (TV). | `web/js/orbs.js`, `web/css/orbs.css`, wired into `web/index.html` (phone) and `web/tv.html` |
 | **TV mic probe** | Checks whether the Tizen Microphone API / `getUserMedia` can reach the TV's microphone from a browser page, vs a packaged Tizen app. | `/tv/mic-probe` (`web/mic-probe.html`, `web/js/mic-probe.js`), `jarvis/mic_probe.py`, `GET`/`POST /api/mic-probe`, `/api/health`, [docs/TV_MIC_PROBE.md](docs/TV_MIC_PROBE.md) |
 | **Samsung TV power / input (stubs)** | samsungtvws on wss:8002 with a token file: power off (`KEY_POWER`), input (`KEY_HDMI` cycle, `KEY_SOURCE`). Power on is Wake-on-LAN. Needs "Power On with Mobile" and "IP Remote" on the TV; Ethernet beats Wi-Fi. | `jarvis/tv/samsung.py`, `jarvis/tv/wol.py`, `POST /api/tv/power`, `POST /api/tv/input`, config `tv.ip`, `tv.mac`, `tv.token_file`, [docs/TV_CONTROL.md](docs/TV_CONTROL.md) |
+| **samsung-tv-root play bridge** | For an already-rooted TV: `sdb push` + `archive-root root <ip> --command …` so "play &lt;title&gt; on the tv" is a real action. Also `tv on` / `tv off` / input. | `jarvis/tv/root.py`, `jarvis/specialists/tv.py`, config `tv_ip` / `tv_sdb_path` / `tv_root_exe_path` / `tv_runtime`, [docs/TV_ROOT.md](docs/TV_ROOT.md) |
 | Grok specialist | Optional replies when `XAI_API_KEY` is set. | `jarvis/specialists/grok.py` |
 | Streaming + transfers | HTTP Range streaming, phone-to-TV drop, TV controller hook, per-device tokens. | `jarvis/http_range.py`, `transfers.py`, `auth.py`, `jarvis/tv/controller.py` |
 | Thin clients | `/laptop`, `/echo`, `/fire` aliases. | [docs/CLIENTS.md](docs/CLIENTS.md) |
@@ -418,6 +419,7 @@ python3 -m jarvis.server
 - [Install on Windows](docs/INSTALL_WINDOWS.md) - copy-paste PowerShell for the Hub PC.
 - [Status](docs/STATUS.md) — phase 2 progress, hardware checklist, and later work.
 - [TV control](docs/TV_CONTROL.md) - samsungtvws power/input and Wake-on-LAN setup.
+- [TV root](docs/TV_ROOT.md) - samsung-tv-root archive-root play bridge (OpenSSL PATH, paths, unverified launch command).
 - [Phase 2 design](docs/PHASE2_DESIGN.md) — wake word, talkback, Grok API, TV playback, clients, transfers, and security.
 - [Thin clients](docs/CLIENTS.md) — phone, TV, laptop, Echo Show 15, Fire TV.
 - [TV mic probe](docs/TV_MIC_PROBE.md) — diagnostic for the QN75QN800D built-in microphone.

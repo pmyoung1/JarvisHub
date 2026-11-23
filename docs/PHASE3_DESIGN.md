@@ -1,10 +1,11 @@
 # Jarvis Hub — Phase 3 design
 
 
-> **Status:** only the Samsung power/input/Wake-on-LAN *stubs* exist (built in
-> phase 2: `jarvis/tv/samsung.py`, `jarvis/tv/wol.py`, see
-> [TV_CONTROL.md](TV_CONTROL.md)). The blue/orange orbs shipped in phase 2 as
-> single-device orbs (`web/js/orbs.js`). Named-input switching, the TvSpecialist,
+> **Status:** Samsung power/input/Wake-on-LAN stubs exist (`jarvis/tv/samsung.py`,
+> `jarvis/tv/wol.py`, [TV_CONTROL.md](TV_CONTROL.md)). A phase 2↔3 bridge for an
+> already-rooted TV also exists: `jarvis/tv/root.py` + [TV_ROOT.md](TV_ROOT.md)
+> (archive-root play, WoL power-on, optional samsungtvws keys). The blue/orange
+> orbs shipped as single-device orbs (`web/js/orbs.js`). Named-input calibration,
 > multi-node mic handoff, Reolink detection and security scanning below are
 > still design only.
 

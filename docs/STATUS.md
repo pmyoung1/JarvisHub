@@ -49,6 +49,7 @@ microphone and speakers, or the TV can confirm it), **pending**.
 | 7 | Requirements | `requirements.txt` (core, no packages), `requirements-wakeword.txt`, `requirements-voice.txt`, `requirements-tv.txt` | **verified here** | `pip --platform win_amd64` resolves every package on Python 3.10-3.13 (openWakeWord itself was installed and run on Linux). A test fails if the core file gains packages. |
 | 8 | Install guide and zip | `docs/INSTALL_WINDOWS.md`, `JarvisHub-phase2.zip` | **needs hardware** (Windows) | Script names, task names and requirement files in the guide are checked by a test. The commands were not executed on Windows. |
 | 9 | Full voice agent (speaker verification, mute sync, spoken replies on the PC) | `jarvis/voice/agent.py`, `speaker.py`, `enroll.py`, `scripts/install_voice_agent.ps1`, `enroll_voice.ps1` | **needs hardware** | Fake-engine unit tests and a localhost protocol test, as before. Now shares the single-listener lock and publishes a `speaking` state for the orbs. SpeechBrain/Resemblyzer never loaded; nobody has enrolled. |
+| 10a | samsung-tv-root archive-root play / tv on / tv off | `jarvis/tv/root.py`, `jarvis/specialists/tv.py`, [TV_ROOT.md](TV_ROOT.md) | **needs hardware** | Subprocess argv, timeout, missing-exe, push+launch sequence, and specialist replies are unit tested with mocks. **The live TV at 10.0.0.7 was not contacted from this box.** |
 | 10 | Grok, Range streaming, transfers, tokens, thin clients | unchanged | as in the earlier phase 2 notes | Mocked HTTP only for Grok; no real TV or laptop/Echo/Fire client was used. |
 
 Also fixed while running the real engines: faster-whisper on a CPU got the GPU
@@ -100,12 +101,21 @@ Do these on the Windows Hub PC and the QN75QN800DFXZA after following
 12. Upload a short video or photo from the phone; open it from the TV Incoming
     row; open `/laptop`, the Echo Show bookmark, and Fire TV `/fire`.
 
+## Phase 2↔3 bridge: samsung-tv-root
+
+See [TV_ROOT.md](TV_ROOT.md). `jarvis/tv/root.py` shells out to the 0.0.13
+release exe (`archive-root root <ip> --command …`) for real playback on the
+already-rooted QN75QN800DFXZA. Power-on is Wake-on-LAN; power-off / input reuse
+samsungtvws keys when installed. **Not verified against the live TV from this
+build box** — only mocked subprocess tests. Confirm the `launch_app` play
+command on the Hub PC.
+
 ## Phase 3 scope (design only, except the stubs noted)
 
 Details in [PHASE3_DESIGN.md](PHASE3_DESIGN.md). Already started in phase 2 as
 stubs: samsungtvws power off / Wake-on-LAN power on / `KEY_HDMI` and
-`KEY_SOURCE` input (see [TV_CONTROL.md](TV_CONTROL.md)), and single-device orbs.
-Still to do:
+`KEY_SOURCE` input (see [TV_CONTROL.md](TV_CONTROL.md)), single-device orbs, and
+the samsung-tv-root play bridge above. Still to do:
 
 - Named-input switching on the QN75QN800D (calibrate the `KEY_HDMI` cycle).
 - `TvSpecialist` so "turn on the TV" and "switch to HDMI 2" work by voice.
