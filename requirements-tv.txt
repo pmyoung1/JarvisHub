@@ -1,0 +1,8 @@
+# Samsung TV power / input control (jarvis/tv/samsung.py).
+#
+#   .venv\Scripts\python.exe -m pip install -r requirements-tv.txt
+#
+# samsungtvws is LGPL-3.0 and is imported lazily, only when a key is sent.
+# The plain package is enough: the optional [encrypted] extra is for pre-2016
+# sets and [async] is not used. Wake-on-LAN (power on) needs no package at all.
+samsungtvws>=2.6.0

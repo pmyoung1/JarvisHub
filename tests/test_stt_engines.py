@@ -85,6 +85,35 @@ class FasterWhisperTests(unittest.TestCase):
         self.assertLessEqual(float(audio.max()), 1.0)
 
 
+    @unittest.skipUnless(__import__("importlib").util.find_spec("numpy"), "numpy not installed")
+    def test_missing_cuda_runtime_at_inference_time_falls_back_to_cpu(self) -> None:
+        import numpy as np
+
+        created: list = []
+        mod = types.ModuleType("faster_whisper")
+
+        class WhisperModel:
+            def __init__(self, model, device="cpu", compute_type="default"):
+                created.append((device, compute_type))
+                self.device = device
+
+            def transcribe(self, audio, **kw):
+                if self.device == "cuda":
+                    raise RuntimeError("Library cublas64_12.dll is not found or cannot be loaded")
+                return iter([FakeSegment("ok now")]), None
+
+        mod.WhisperModel = WhisperModel
+        saved = sys.modules.get("faster_whisper")
+        sys.modules["faster_whisper"] = mod
+        try:
+            engine = stt.FasterWhisperSTT("small", "cuda", "int8_float16")
+            self.assertEqual(engine.transcribe(np.zeros(1600, dtype=np.int16).tobytes()), "ok now")
+        finally:
+            restore(saved)
+        self.assertEqual(created, [("cuda", "int8_float16"), ("cpu", "int8")])
+        self.assertTrue(engine.name.endswith(":cpu"))
+
+
 class BuildTranscriberTests(unittest.TestCase):
     def test_unavailable_reason_names_the_real_failures(self) -> None:
         saved = sys.modules.get("faster_whisper")

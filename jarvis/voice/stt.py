@@ -42,6 +42,9 @@ class FasterWhisperSTT:
 
         if device == "cpu" and "float16" in (compute_type or ""):
             compute_type = "int8"  # CPUs do not support the GPU-oriented default
+        self._whisper_cls = WhisperModel
+        self._model_name = model
+        self._device = device
         try:
             self._model = WhisperModel(model, device=device, compute_type=compute_type)
             self.name = f"faster-whisper:{model}:{device}"
@@ -49,6 +52,7 @@ class FasterWhisperSTT:
             if device != "cpu":
                 LOG.warning("faster-whisper %s failed (%s); retrying on CPU int8", device, exc)
                 self._model = WhisperModel(model, device="cpu", compute_type="int8")
+                self._device = "cpu"
                 self.name = f"faster-whisper:{model}:cpu"
             else:
                 raise
@@ -61,6 +65,20 @@ class FasterWhisperSTT:
         if sample_rate != SAMPLE_RATE:
             raise ValueError(f"expected {SAMPLE_RATE} Hz PCM, got {sample_rate}")
         audio = np.frombuffer(pcm[: len(pcm) - (len(pcm) % 2)], dtype=np.int16).astype(np.float32) / 32768.0
+        try:
+            return self._run(audio)
+        except RuntimeError as exc:
+            # CTranslate2 loads fine without the CUDA runtime DLLs and only fails
+            # when it first runs (cublas64_12.dll / cudnn not found). Drop to CPU once.
+            if self._device == "cpu":
+                raise
+            LOG.warning("faster-whisper failed on %s (%s); switching to CPU int8", self._device, exc)
+            self._model = self._whisper_cls(self._model_name, device="cpu", compute_type="int8")
+            self._device = "cpu"
+            self.name = f"faster-whisper:{self._model_name}:cpu"
+            return self._run(audio)
+
+    def _run(self, audio) -> str:  # noqa: ANN001
         segments, _info = self._model.transcribe(audio, language="en", vad_filter=True)
         parts = [seg.text.strip() for seg in segments if getattr(seg, "text", "").strip()]
         return " ".join(parts).strip()

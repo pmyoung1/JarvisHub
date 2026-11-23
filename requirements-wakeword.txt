@@ -1,0 +1,27 @@
+# Wake word + speech-to-text + talkback. Used by scripts/wakeword.py
+# (run_wakeword.ps1) and by the hub's GET/POST /api/tts when Piper is wanted.
+# The hub process itself stays stdlib-only; everything here is imported lazily.
+#
+#   .venv\Scripts\python.exe -m pip install -r requirements-wakeword.txt
+#
+# Windows x64 wheels exist for every package here on Python 3.10-3.13 (checked with pip --platform win_amd64).
+# No cloud service is used: openWakeWord, faster-whisper and Piper all run locally.
+# (edge-tts is intentionally not listed: it needs Microsoft's online service.)
+
+# Wake word: the built-in "hey jarvis" model
+openwakeword>=0.6.0,<0.7
+onnxruntime>=1.16
+
+# Microphone capture and WAV playback
+sounddevice>=0.4.6
+soundfile>=0.12.1
+numpy>=1.24
+
+# Speech to text (GPU if CUDA is available, falls back to CPU int8)
+faster-whisper>=1.0.0
+
+# Offline talkback voices (Piper). Also download a voice .onnx, see docs/INSTALL_WINDOWS.md
+piper-tts>=1.2.0
+
+# Windows SAPI fallback for talkback (the hub also has a no-package System.Speech path)
+pyttsx3>=2.90

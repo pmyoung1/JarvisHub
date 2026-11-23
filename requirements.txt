@@ -1,14 +1,23 @@
-# Jarvis Hub — core service
+# Jarvis Hub - core service
 # Core function uses the Python 3.10+ standard library only
 # (http.server, json, sqlite3, pathlib, logging, xml, difflib, ssl, ...).
 #
 # No third-party packages are required to run the hub, the dashboard,
 # the media indexer, Range streaming, transfers, the Grok specialist
-# (stdlib urllib), or the unit tests.
+# (stdlib urllib), Wake-on-LAN, or the unit tests.
 #
-# Voice-agent extras (openWakeWord, faster-whisper, SpeechBrain, Piper,
-# pyttsx3, sounddevice) live in requirements-voice.txt and are imported
-# lazily so the hub still starts without them.
+# Phase 2 add-ons are separate files so the hub never breaks without them.
+# Every one of them is imported lazily; a missing package only disables
+# its own feature. Install what you want into the project's .venv:
+#
+#   .venv\Scripts\python.exe -m pip install -r requirements.txt `
+#       -r requirements-wakeword.txt -r requirements-tv.txt
+#
+#   requirements-wakeword.txt  openwakeword + faster-whisper + piper-tts + pyttsx3 + sounddevice
+#                              (scripts\wakeword.py and /api/tts talkback)
+#   requirements-voice.txt     everything above PLUS speaker verification (torch, speechbrain)
+#                              and Vosk, for the full voice agent (python -m jarvis.voice)
+#   requirements-tv.txt        samsungtvws (TV power / input over the WebSocket remote)
 #
 # Optional (not required):
 #   cryptography   # only if you prefer it over OpenSSL/PowerShell for
