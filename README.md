@@ -4,26 +4,84 @@ A lightweight, always-on household AI hub that runs on a Windows desktop PC
 and serves a local-network dashboard to phones and a Samsung TV browser.
 
 Phase 1 is the plumbing: wake, receive, route, reply, display, and a local
-movie index. Phase 2 adds an interactive voice agent on the Hub PC (wake
-word, speaker check, talkback), optional Grok replies, HTTP Range
-streaming with a TV controller hook, phone-to-TV transfers, and thin
-clients for a laptop, Echo Show, and Fire TV. Core function still works
-entirely on the LAN with no cloud. The Grok specialist stays off unless
-you set `XAI_API_KEY`.
+movie index. **Phase 2 is in this tree** (listed below, with the file that
+implements each part). Core function works entirely on the LAN with no
+cloud; the Grok specialist stays off unless you set `XAI_API_KEY`.
+
+**Installing on the Hub PC?** Follow [docs/INSTALL_WINDOWS.md](docs/INSTALL_WINDOWS.md)
+(copy-paste PowerShell: replace the service, install packages, voice model,
+wake word listener).
+
+## Phase 2 contents
+
+If your copy does not have the files in the right-hand column, it is an old
+phase 1 download. Get `JarvisHub-phase2.zip` or
+`https://github.com/pmyoung1/JarvisHub/archive/refs/heads/main.zip`.
+
+| Feature | What it does | Where it lives |
+| ------- | ------------ | -------------- |
+| **Wake word listener** | Offline openWakeWord "hey jarvis" -> speech-to-text -> `POST /api/command`. Runs in your login session (not the SYSTEM boot task, which has no microphone). Flags: `--hub-url --token --threshold --list-devices --dry-run`. | `scripts/wakeword.py`, `jarvis/voice/listener.py`, `capture.py`, `wake.py`, `stt.py`, `client.py` |
+| **Listener launch scripts** | Run it, add it to `shell:startup`, remove it. | `scripts/run_wakeword.ps1`, `install_wakeword_startup.ps1`, `uninstall_wakeword_startup.ps1` |
+| **Full voice agent** (optional) | Wake word + speaker verification + spoken replies on the hub PC + mute sync. | `python -m jarvis.voice` (`jarvis/voice/agent.py`, `speaker.py`, `enroll.py`), `scripts/install_voice_agent.ps1`, `enroll_voice.ps1` |
+| **Talkback (Piper, SAPI fallback)** | Offline voices. Hub endpoint returns a WAV: `POST /api/tts` (or `GET /api/tts?text=`). Order: Piper, Windows SAPI (System.Speech), pyttsx3. No edge-tts. | `jarvis/tts_service.py`, `jarvis/voice/tts.py`, config `voice.tts_voice`, `voice.tts_voices_dir`, `voice.tts_model_path`, `tts.*` |
+| **Orbs (blue mic, orange talkback)** | Blue orb pulses from an AnalyserNode on the mic stream when speech is detected; orange orb pulses from an AnalyserNode on the talkback `<audio>`. Radial gradients, sine-eased scale. Also follows hub SSE `voice` state; degrades with no mic or on plain HTTP (TV). | `web/js/orbs.js`, `web/css/orbs.css`, wired into `web/index.html` (phone) and `web/tv.html` |
+| **TV mic probe** | Checks whether the Tizen Microphone API / `getUserMedia` can reach the TV's microphone from a browser page, vs a packaged Tizen app. | `/tv/mic-probe` (`web/mic-probe.html`, `web/js/mic-probe.js`), `jarvis/mic_probe.py`, `GET`/`POST /api/mic-probe`, `/api/health`, [docs/TV_MIC_PROBE.md](docs/TV_MIC_PROBE.md) |
+| **Samsung TV power / input (stubs)** | samsungtvws on wss:8002 with a token file: power off (`KEY_POWER`), input (`KEY_HDMI` cycle, `KEY_SOURCE`). Power on is Wake-on-LAN. Needs "Power On with Mobile" and "IP Remote" on the TV; Ethernet beats Wi-Fi. | `jarvis/tv/samsung.py`, `jarvis/tv/wol.py`, `POST /api/tv/power`, `POST /api/tv/input`, config `tv.ip`, `tv.mac`, `tv.token_file`, [docs/TV_CONTROL.md](docs/TV_CONTROL.md) |
+| Grok specialist | Optional replies when `XAI_API_KEY` is set. | `jarvis/specialists/grok.py` |
+| Streaming + transfers | HTTP Range streaming, phone-to-TV drop, TV controller hook, per-device tokens. | `jarvis/http_range.py`, `transfers.py`, `auth.py`, `jarvis/tv/controller.py` |
+| Thin clients | `/laptop`, `/echo`, `/fire` aliases. | [docs/CLIENTS.md](docs/CLIENTS.md) |
+
+What is **not** verified without the real hardware (microphone, speakers, the
+TV) is listed in [docs/STATUS.md](docs/STATUS.md).
+
+### Which listener: `wakeword.py` or the voice agent?
+
+Run **one**. They share a lock (`data/voice/listener.lock`), so a second one
+exits instead of answering twice.
+
+| | `scripts/wakeword.py` (default choice) | `python -m jarvis.voice` (full agent) |
+| --- | --- | --- |
+| Install | `scripts/install_wakeword_startup.ps1` | `scripts/install_voice_agent.ps1` |
+| Starts | Startup-folder shortcut at your logon | Scheduled task `JarvisHubVoice` at your logon |
+| Packages | `requirements-wakeword.txt` (small) | `requirements-voice.txt` (adds torch + SpeechBrain, several GB) |
+| Speaker verification | No: anyone who says "hey jarvis" is heard | Yes, after `enroll_voice.ps1` |
+| Spoken replies on the PC | Only with `--speak` | Yes (`speak_sources`) |
+| Mute button on the dashboard | Honored | Honored |
+
+Phones and the TV get talkback from the hub's `/api/tts` either way (turn on
+**Talkback** on the page).
+
+### Packages
+
+The hub itself stays on the Python standard library: `requirements.txt` has no
+packages. Optional add-ons are separate files, all imported lazily, so the hub
+starts without them:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-wakeword.txt -r requirements-tv.txt
+# Only for the full voice agent with speaker verification:
+.\.venv\Scripts\python.exe -m pip install -r requirements-voice.txt
+```
+
+| File | Installs |
+| ---- | -------- |
+| `requirements-wakeword.txt` | `openwakeword`, `onnxruntime`, `faster-whisper`, `piper-tts`, `pyttsx3`, `sounddevice`, `soundfile`, `numpy` |
+| `requirements-tv.txt` | `samsungtvws` (LGPL-3.0) |
+| `requirements-voice.txt` | the wakeword file plus `torch`, `speechbrain`, `resemblyzer`, `vosk` |
+
+A Piper voice file also has to be downloaded; see step A7 of
+[docs/INSTALL_WINDOWS.md](docs/INSTALL_WINDOWS.md).
 
 The target machine is a well-built Windows desktop (32 GB RAM, 8 GB VRAM,
-large local movie library). The hub process is Python 3.10+ and stays on the standard library
-(`http.server`, `json`, `sqlite3`, `pathlib`, `logging`, `xml`,
-`difflib`, `ssl`). Optional voice libraries are listed in
-`requirements-voice.txt` and are imported only by the voice agent.
+large local movie library). The hub process is Python 3.10+.
 
 ## What you get
 
 - An always-on service that starts at boot (Task Scheduler) and keeps running
   with no user logged in. A watchdog launcher restarts the server on a crash.
 - A web dashboard on port **8765** (configurable):
-  - Phone view at `http://<hub-ip>:8765` — chat, optional mic, media grid.
-  - TV remote view at `http://<hub-ip>:8765/tv` — 10-foot UI for the
+  - Phone view at `http://<hub-ip>:8765` - chat, optional mic, media grid, orbs, talkback.
+  - TV remote view at `http://<hub-ip>:8765/tv` - 10-foot UI for the
     Samsung 75" Neo QLED 8K (`QN75QN800DFXZA`, Tizen 8/9) built-in Internet
     browser. D-pad navigation, no native app.
 - Command pipeline with pluggable specialists (core + media + Grok when
@@ -33,8 +91,6 @@ large local movie library). The hub process is Python 3.10+ and stays on the sta
   poster art. "Play X on the TV" resolves a file, issues an HTTP Range
   stream URL, and calls the configured TV controller. Until
   samsung-tv-root is hooked up, the reply stays "would play".
-- An optional voice agent (`python -m jarvis.voice`) that must run in a
-  logged-on desktop session, not in the boot service.
 
 ## Hub PC setup (Windows)
 
@@ -50,13 +106,15 @@ py -3 --version
 ```
 
 No third-party packages are required for the hub itself.
-`requirements.txt` documents that. Voice extras are optional
-(`requirements-voice.txt`).
+`requirements.txt` documents that. The phase 2 add-ons are optional (see
+"Packages" above).
 
 ### 2. Copy the project onto the PC
 
 Copy this folder to a stable path, for example `C:\JarvisHub`. If you are
-working from a zip, extract it there.
+working from a zip, extract it there (the phase 2 zip has its files at the
+root, so it extracts straight into `C:\JarvisHub`). Upgrading from phase 1?
+Use the step-by-step in [docs/INSTALL_WINDOWS.md](docs/INSTALL_WINDOWS.md).
 
 ### 3. Configure
 
@@ -83,7 +141,8 @@ Set at least:
   `voice`, `transfers`). Values may be the raw token or `sha256:<hex>`.
 - `voice`, `grok`, `tv`, `transfers` — see `config.example.json` and
   [PHASE2_DESIGN.md](docs/PHASE2_DESIGN.md). Leave `tv.controller` as
-  `"null"` until samsung-tv-root is installed. Grok is used only when
+  `"null"` until samsung-tv-root is installed (or set it to `samsungtvws` for
+  power/input, see [docs/TV_CONTROL.md](docs/TV_CONTROL.md)). Grok is used only when
   the environment variable in `grok.api_key_env` (default `XAI_API_KEY`)
   is set.
 - `ssl` — leave disabled unless you want HTTPS for the phone mic button
@@ -180,14 +239,28 @@ address so the IP does not change. A static address on the adapter itself
 also works. You will use this IP on the phone and the TV.
 
 
-## Voice agent (phase 2, Hub PC)
+## Voice (phase 2, Hub PC)
 
 Windows will not give a Session 0 boot service access to the microphone.
-The hub service stays as it is. The voice agent is a **separate**
-process that starts **when someone logs on**.
+The hub service stays as it is. The listener is a **separate** process that
+starts **when you log on** (see "Which listener" above).
+
+Lightweight listener (default):
 
 ```powershell
 cd C:\JarvisHub
+.\.venv\Scripts\python.exe scripts\wakeword.py --list-devices
+powershell -ExecutionPolicy Bypass -File .\scripts\run_wakeword.ps1 -Foreground --dry-run   # test
+powershell -ExecutionPolicy Bypass -File .\scripts\install_wakeword_startup.ps1               # add to shell:startup
+```
+
+It logs to `logs\wakeword.log`. Flags: `--hub-url`, `--token`, `--threshold`,
+`--list-devices`, `--dry-run`, plus `--input-device`, `--speak`, `--stt-model`,
+`--stt-device`, `--wav` (feed a WAV instead of the mic), `--log-file`.
+
+Full voice agent with speaker verification:
+
+```powershell
 .\scripts\install_voice_agent.ps1
 .\scripts\enroll_voice.ps1
 Start-ScheduledTask -TaskName JarvisHubVoice
@@ -196,25 +269,32 @@ Start-ScheduledTask -TaskName JarvisHubVoice
 The install script creates `.venv`, installs `requirements-voice.txt`,
 downloads the default Piper voice (`en_US-lessac-medium`), and registers
 an At-logon task named `JarvisHubVoice`. Enrollment records three clips
-of Patrick's voice for SpeechBrain ECAPA (Resemblyzer is the fallback).
+of Patrick's voice for SpeechBrain ECAPA (Resemblyzer is the fallback). Until
+you enroll, the agent skips the voice check.
 
-Until you enroll, the agent logs a warning and skips the voice check
-(anyone who says "hey jarvis" is accepted). After enrollment, only a
-close match to the saved profile is transcribed and sent to the hub.
+Set `voice.input_device` and `voice.output_device` in `config.json` if the
+defaults are wrong. `speak_sources` defaults to `["hub-mic"]`, so typed phone
+commands are not spoken on the PC. Remove the logon task with
+`.\scripts\uninstall_voice_agent.ps1`; neither listener touches the `JarvisHub`
+boot service.
 
-List devices:
+### Talkback and the orbs
 
-```powershell
-.\.venv\Scripts\python.exe -m jarvis.voice --list-devices
-```
+`POST /api/tts` with `{"text": "..."}` (or `GET /api/tts?text=...`) returns a
+WAV made by Piper when a voice is installed, else Windows SAPI. Voice files
+go in `data\voices\` (config default) or at `voice.tts_model_path`. With
+nothing installed it answers `503` with what to install.
 
-Set `voice.input_device` and `voice.output_device` in `config.json` if
-needed. Talkback uses Piper first, then Windows SAPI via pyttsx3.
-`speak_sources` defaults to `["hub-mic"]`, so typed phone commands are
-not spoken aloud unless you add those sources.
+On the phone and TV pages, tap **Talkback** to let replies to commands sent
+from that device play through the page; the orange orb follows the audio, and
+the blue orb follows your microphone when the page may use it (tap **Mic orb**;
+needs HTTPS or localhost). Without a mic it follows the hub's own listener state.
 
-Remove the logon task with `.\scripts\uninstall_voice_agent.ps1`. This
-does not touch the `JarvisHub` boot service.
+### Samsung TV power and input
+
+Off by default. See [docs/TV_CONTROL.md](docs/TV_CONTROL.md) for the TV settings
+(**Power On with Mobile**, **IP Remote**, prefer Ethernet), `tv.ip` / `tv.mac` /
+`tv.token_file`, pairing, and `POST /api/tv/power` / `POST /api/tv/input`.
 
 ## Open the dashboard from a phone
 
@@ -313,6 +393,10 @@ Laptop, Echo Show 15, and Fire TV setup is in
 - `GET /api/transfers`, `GET /api/transfers/<id>/stream`,
   `POST /api/transfers/<id>/play`, `DELETE /api/transfers/<id>`
 - `GET`/`POST /api/voice/status`, `POST /api/voice/mute`
+- `POST /api/tts` (`{"text"}`) or `GET /api/tts?text=` - talkback WAV (Piper, SAPI fallback)
+- `POST /api/tv/power` (`{"action":"on|off"}`), `POST /api/tv/input`
+  (`{"input":"next|source|hdmi1..4","times":1}`), `GET /api/tv/status` - Samsung
+  controller, 501 unless `tv.controller` is `samsungtvws`
 - `GET`/`POST /api/mic-probe` — TV microphone diagnostic reports
 - `GET /tv/mic-probe` — 10-foot probe page for the TV Internet app
 
@@ -331,7 +415,9 @@ python3 -m jarvis.server
 
 - [Architecture](docs/ARCHITECTURE.md) — components, the pipeline, thin
   clients, specialist plug-in points, security.
+- [Install on Windows](docs/INSTALL_WINDOWS.md) - copy-paste PowerShell for the Hub PC.
 - [Status](docs/STATUS.md) — phase 2 progress, hardware checklist, and later work.
+- [TV control](docs/TV_CONTROL.md) - samsungtvws power/input and Wake-on-LAN setup.
 - [Phase 2 design](docs/PHASE2_DESIGN.md) — wake word, talkback, Grok API, TV playback, clients, transfers, and security.
 - [Thin clients](docs/CLIENTS.md) — phone, TV, laptop, Echo Show 15, Fire TV.
 - [TV mic probe](docs/TV_MIC_PROBE.md) — diagnostic for the QN75QN800D built-in microphone.

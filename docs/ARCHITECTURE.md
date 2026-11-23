@@ -169,3 +169,38 @@ second safety net. Health is exposed at `GET /api/health`.
   mic. Trusting a self-signed cert is a manual step; keyboard dictation
   still works over HTTP.
 - Do not port-forward 8765. Do not put the hub on a public interface.
+
+## Phase 2 additions (what plugs in where)
+
+```mermaid
+flowchart LR
+  subgraph login["Your login session (has the microphone)"]
+    WW["scripts/wakeword.py\nopenWakeWord + STT"]
+  end
+  subgraph boot["Boot task as SYSTEM (Session 0, no microphone)"]
+    HUB["Hub: http.server\n/api/command  /api/tts  /api/tv/*  /api/events"]
+    TTS["tts_service.py\nPiper > SAPI > pyttsx3"]
+    TVC["tv/samsung.py + tv/wol.py"]
+  end
+  PH["Phone / TV pages\norbs.js"]
+  TV["Samsung TV\nwss:8002 + Wake-on-LAN"]
+  WW -- "POST /api/command {text, source: wakeword}" --> HUB
+  HUB -- "SSE reply + voice state" --> PH
+  PH -- "POST /api/tts" --> HUB --> TTS
+  HUB --> TVC --> TV
+```
+
+- `scripts/wakeword.py` (core: `jarvis/voice/listener.py`) is a client of the
+  hub like the phone: it only POSTs text and reads `/api/voice/status` for
+  mute. It and the full voice agent share `data/voice/listener.lock`.
+- `jarvis/tts_service.py` turns text into WAV bytes for `/api/tts`. The hub
+  imports Piper lazily, so it still starts without it.
+- `web/js/orbs.js` builds two orbs on the phone and TV pages. Blue reads an
+  AnalyserNode on `getUserMedia`; orange reads an AnalyserNode on the talkback
+  `<audio>` element. Both also follow the SSE `voice` state
+  (`capturing`, `processing`, `speaking`), so a device with no usable
+  microphone still shows what the hub PC is doing.
+- `jarvis/tv/samsung.py` implements the `TVController` hook plus
+  `power()` / `set_input()`. Power on is a Wake-on-LAN packet; everything else is
+  a samsungtvws key over wss:8002. `/api/tv/power` and `/api/tv/input` return 501
+  for any other controller.

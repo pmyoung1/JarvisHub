@@ -1,5 +1,13 @@
 # Jarvis Hub — Phase 3 design
 
+
+> **Status:** only the Samsung power/input/Wake-on-LAN *stubs* exist (built in
+> phase 2: `jarvis/tv/samsung.py`, `jarvis/tv/wol.py`, see
+> [TV_CONTROL.md](TV_CONTROL.md)). The blue/orange orbs shipped in phase 2 as
+> single-device orbs (`web/js/orbs.js`). Named-input switching, the TvSpecialist,
+> multi-node mic handoff, Reolink detection and security scanning below are
+> still design only.
+
 Samsung TV full control for the household **QN75QN800DFXZA** (2024
 75" Neo QLED 8K, Tizen) using Samsung’s **local network remote
 protocol**, with no TV root required for power and HDMI input.

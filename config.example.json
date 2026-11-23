@@ -40,12 +40,20 @@
     "tts_engine": "piper",
     "tts_voice": "en_US-lessac-medium",
     "tts_voices_dir": "data/voices",
+    "tts_model_path": "",
     "tts_fallback": "sapi",
     "input_device": "",
     "output_device": "",
-    "speak_sources": ["hub-mic"],
+    "speak_sources": [
+      "hub-mic"
+    ],
     "retain_recordings": false,
     "mute": false
+  },
+  "tts": {
+    "enabled": true,
+    "max_chars": 500,
+    "cache_items": 32
   },
   "grok": {
     "enabled": true,
@@ -58,9 +66,16 @@
   },
   "tv": {
     "controller": "null",
+    "ip": "",
+    "mac": "",
+    "token_file": "data/tv/samsung_token.txt",
+    "port": 8002,
+    "name": "JarvisHub",
+    "broadcast": "255.255.255.255",
     "controller_options": {
       "command": "",
-      "endpoint": ""
+      "endpoint": "",
+      "direct_hdmi_keys": false
     },
     "stream_token_ttl_seconds": 300
   },
@@ -68,6 +83,18 @@
     "dir": "data/transfers",
     "max_bytes": 1073741824,
     "ttl_hours": 48,
-    "allowed_extensions": [".mp4", ".mkv", ".webm", ".mov", ".m4v", ".jpg", ".jpeg", ".png", ".webp", ".mp3", ".wav"]
+    "allowed_extensions": [
+      ".mp4",
+      ".mkv",
+      ".webm",
+      ".mov",
+      ".m4v",
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".webp",
+      ".mp3",
+      ".wav"
+    ]
   }
 }

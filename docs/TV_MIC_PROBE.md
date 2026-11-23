@@ -96,6 +96,46 @@ work in a [secure context](https://developer.mozilla.org/en-US/docs/Web/API/Medi
 is usually **not** a secure context, so this path is likely to fail
 even if a microphone device exists.
 
+## Browser-served page vs a packaged Tizen app
+
+This probe runs as an ordinary web page the TV's Internet app loads over HTTP from the hub. That is the
+cheap test. Whether the QN75QN800DFXZA's built-in far-field microphone array is reachable depends heavily on
+*how the page is hosted*:
+
+| | Browser-served page (this probe) | Packaged Tizen app (`.wgt` built in Tizen Studio) |
+| --- | --- | --- |
+| Loads `$WEBAPIS/webapis/webapis.js` | No. The token only resolves inside a packaged app, so `webapis` is absent. | Yes. |
+| Samsung `webapis.microphone` | Not reachable. | Reachable if the app declares the privilege below. |
+| `getUserMedia` | Only if the Internet app implements it, the page is a **secure context** (HTTPS or localhost; a LAN `http://` hub is not), and the browser grants permission. | Works if the app declares the web privilege below; behavior for a *local-domain* app is "granted when declared", for a *remote-domain* page the user is prompted. |
+| `config.xml` privileges | None (there is no `config.xml`). | Required. |
+| Signing | None. | Samsung or developer certificate; Developer Mode on the TV or a Seller Office submission. |
+
+Privileges, since they are easy to confuse:
+
+- **Samsung Product API Microphone** (`webapis.microphone.*`): `http://developer.samsung.com/privilege/microphone`
+  (Public level, per Samsung's Microphone API reference). This is the path with explicit 48 kHz S16LE capture
+  from the TV microphone.
+- **Standard web `getUserMedia`** in a Tizen web app: `http://tizen.org/privilege/mediacapture` (Public,
+  privacy-related, so the user can also switch it off). Tizen's own privilege list has no
+  `http://tizen.org/privilege/microphone` entry; the microphone-related Tizen privileges are `mediacapture`
+  (getUserMedia), `recorder`, and `audiorecorder`. A packaged app would normally declare
+  `mediacapture` (and `http://developer.samsung.com/privilege/microphone` if it uses `webapis.microphone`):
+
+  ```xml
+  <tizen:privilege name="http://tizen.org/privilege/mediacapture"/>
+  <tizen:privilege name="http://developer.samsung.com/privilege/microphone"/>
+  ```
+- Samsung's partner-only `smartcontroller.microphone` is a different, restricted thing; do not plan on it.
+
+Tizen's HTML5 privilege table is written for mobile and wearable profiles; how a 2024 TV treats
+`mediacapture` has not been verified here.
+
+**What the probe can and cannot tell you.** If it reports `tizen_api: absent` and `getusermedia: fail|insecure`,
+that does **not** prove the hardware array is unusable: it proves a *browser-served page* cannot reach it. Only
+a packaged app test (a minimal `.wgt` that loads this probe, or at least `webapis.js` and the
+privilege) can answer the second question. That packaged-app test is not built here and stays optional:
+phones, the hub PC microphone and the Echo Show remain the ears either way.
+
 ## Expected outcome (before the real TV has been tested)
 
 This has **not** been run on the QN75QN800D. The expected result, based

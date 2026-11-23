@@ -1,4 +1,4 @@
-# Status — phase 1 shipped, phase 2 implemented, later work
+# Status - phase 1 shipped, phase 2 in this tree, later work
 
 ## Done in phase 1
 
@@ -27,92 +27,92 @@
 - README (Hub PC, phone, TV), architecture notes, this status file.
 - Unit tests for filename parsing, routing, and indexing.
 
-## Phase 2 implementation progress
+## Phase 2: what is in this tree
 
-Design: [PHASE2_DESIGN.md](PHASE2_DESIGN.md). Thin-client notes:
-[CLIENTS.md](CLIENTS.md). TV mic diagnostic: [TV_MIC_PROBE.md](TV_MIC_PROBE.md).
+Design: [PHASE2_DESIGN.md](PHASE2_DESIGN.md). Install:
+[INSTALL_WINDOWS.md](INSTALL_WINDOWS.md). Thin clients: [CLIENTS.md](CLIENTS.md).
+TV mic diagnostic: [TV_MIC_PROBE.md](TV_MIC_PROBE.md). TV power/input:
+[TV_CONTROL.md](TV_CONTROL.md).
 
-Status values: **done** (automated tests on this box),
-**implemented-untested-on-hardware** (code and tests with mocks / fakes;
-needs a check on the Hub PC or the TV), **pending**.
+Status values: **verified here** (run on the build box with the real library
+where noted), **needs hardware** (code is tested, but only the Hub PC, its
+microphone and speakers, or the TV can confirm it), **pending**.
 
-| # | Milestone | Status | How it was verified here |
-| - | --------- | ------ | ------------------------ |
-| 1 | Voice agent process + TTS talkback (session split) | **implemented-untested-on-hardware** | `VoicePipeline` / `VoiceAgent` unit tests with fake TTS; localhost protocol test posts a command and “speaks” the reply. Piper, SAPI, sounddevice, and real speakers were **not** exercised. |
-| 2 | Grok specialist | **done** (mocked HTTP only) | Unit tests with a fake `http_post`. Offline fallback, tool call for `play_media`, `/responses` and `/chat/completions` shapes. The real xAI API was **never** called (no key on this box). |
-| 3 | Wake word + STT | **implemented-untested-on-hardware** | Fake wake engine + fake STT in unit and protocol tests, including a simulated wake frame then a transcript. openWakeWord, faster-whisper, and Vosk were not loaded (optional extras). |
-| 4 | Speaker verification and mute / listening indicator | **implemented-untested-on-hardware** | Enrollment store + cosine tests with a hash encoder; reject path; skip-if-unenrolled; `POST /api/voice/mute` and dashboard mute button. SpeechBrain / Resemblyzer were not loaded. No real enrollment of Patrick's voice. |
-| 5 | HTTP Range streaming + `TVController` interface | **implemented-untested-on-hardware** | Unit tests and curl: `206` / `Content-Range` / `Accept-Ranges`, 416, signed stream tokens, token-gated bare URLs. `NullController` keeps phase 1 `would_play` behavior. No real TV played a file. |
-| 6 | `samsung-tv-root` adapter on the QN75QN800D | **implemented-untested-on-hardware** | Hook implemented (`command` or `endpoint` in `tv.controller_options`). Unconfigured hook honestly returns `would_play`. Endpoint hook tested against a local mock HTTP server. The external root project was not installed and the TV was not contacted. |
-| 7 | Phone-to-TV drag-and-drop transfers | **implemented-untested-on-hardware** | Upload allowlist (extension + magic), size cap, list, delete, Range stream, play-through-controller, SSE events, phone drop zone + TV incoming row. No file was shown on the real TV. |
-| 8 | Laptop shortcut / PWA, optional tray | **implemented-untested-on-hardware** | `/laptop` alias, `scripts/install_laptop_shortcut.ps1`, `python -m jarvis.tray` (tkinter). Not clicked on a Windows laptop here. |
-| 9 | Echo Show 15 and Fire TV thin clients | **implemented-untested-on-hardware** | `/echo` and `/fire` aliases plus [CLIENTS.md](CLIENTS.md). No Alexa skill (would need public HTTPS :443). Not opened on those devices here. |
-| 10 | Per-device tokens and optional LAN HTTPS | **done** (tokens); HTTPS script already existed | `auth_token` still works; `auth_tokens` map (plain or `sha256:…`); `X-Hub-Token` / Bearer / query. Stream URLs use short-lived HMAC query tokens. LAN HTTPS remains the existing cert script. |
-| — | TV mic probe (diagnostic) | **implemented-untested-on-hardware** | `/tv/mic-probe` page, `POST`/`GET /api/mic-probe`, health summary. Endpoint tests below. **Not run on the QN75QN800D.** |
+| # | Feature | Files | Status | What was actually run |
+| - | ------- | ----- | ------ | --------------------- |
+| 1 | Wake word listener, offline "hey jarvis" -> STT -> `POST /api/command` | `scripts/wakeword.py`, `jarvis/voice/listener.py`, `capture.py`, `wake.py`, `stt.py`, `client.py`, `lock.py` | **verified here** except the live microphone | Real openWakeWord scored a Piper-spoken "Hey Jarvis" 0.94-0.996 and an unrelated sentence 0.0. Real faster-whisper (`tiny.en`, CPU) transcribed it. `wakeword.py --wav` then POSTed the text to a live hub and got the reply back. Unit tests cover the POST payload (path, JSON, `X-Hub-Token`), dry-run, mute, below-threshold, hub-down, lock. **Needs hardware:** `sounddevice` capture from the real mic, Windows audio device selection, GPU STT. |
+| 2 | Listener launch: run, add to startup, remove | `scripts/run_wakeword.ps1`, `install_wakeword_startup.ps1`, `uninstall_wakeword_startup.ps1` | **needs hardware** (Windows) | All `.ps1` files parse under the PowerShell 7.7 parser and are ASCII-only (Windows PowerShell 5.1 safe). `run_wakeword.ps1` argument passing, log files and restart loop ran under PowerShell 7 on Linux against a stub Python. **Not run on Windows:** the Startup-folder shortcut (`WScript.Shell`), `Disable-ScheduledTask`, `Start-Process` redirection. |
+| 3 | Talkback: Piper first, Windows SAPI fallback, no edge-tts | `jarvis/tts_service.py`, `jarvis/voice/tts.py`, `GET`/`POST /api/tts` | **verified here** for Piper; SAPI **needs hardware** | Real Piper (`en_US-lessac-medium`) produced valid WAVs through the HTTP endpoint (22.05 kHz). Fallback order, caching, 400/401/503 and the install hint are unit tested with fake engines. Found and fixed a bug: `PiperSpeaker` handed Piper a raw file instead of a WAV writer. **Needs hardware:** `System.Speech` and pyttsx3 on Windows, audible playback. |
+| 4 | Orbs: blue mic, orange talkback, sine-eased radial gradients | `web/js/orbs.js`, `web/css/orbs.css`, `web/index.html`, `web/tv.html`, `phone.js`, `tv.js` | **verified here** in desktop Chrome; **needs hardware** on a phone and the TV | Headless Chrome with a fake microphone: the blue orb scale moved 0.97-1.32 with the beeps; after tapping Talkback the orange orb moved 0.97-1.44 with real Piper audio from `/api/tts`; no console errors. `/tv` renders the orbs. JS helpers (easing, RMS, scale) are tested under node. **Needs hardware:** phone Safari/Chrome over HTTPS, and the Tizen browser (which has no mic over HTTP, so the blue orb only follows hub state there). |
+| 5 | TV mic probe | `web/mic-probe.html`, `web/js/mic-probe.js`, `jarvis/mic_probe.py`, `/api/mic-probe`, `/api/health` | **verified here** in desktop Chrome; **needs the TV** | Page loads at `/tv/mic-probe`, runs, posts a report (HTTP 201), and `/api/health` shows `mic_probe`. Doc now explains browser-served page vs packaged Tizen app and the privileges. **Not run on the QN75QN800DFXZA.** |
+| 6 | Samsung TV control stubs: power off, Wake-on-LAN power on, input | `jarvis/tv/samsung.py`, `jarvis/tv/wol.py`, `POST /api/tv/power`, `/api/tv/input`, `python -m jarvis.tv.samsung` | **needs hardware** | Magic packet layout and UDP send are unit tested. The controller is tested against a mocked `samsungtvws` whose constructor and `send_key` signature were checked against the real installed package (3.0.7). `KEY_POWER`, `KEY_HDMI`, `KEY_SOURCE`, `wss:8002`, `token_file`, KEY_HDMI1-4 refusal, 501 when disabled, and a missing library are covered. **The TV was never contacted.** |
+| 7 | Requirements | `requirements.txt` (core, no packages), `requirements-wakeword.txt`, `requirements-voice.txt`, `requirements-tv.txt` | **verified here** | `pip --platform win_amd64` resolves every package on Python 3.10-3.13 (openWakeWord itself was installed and run on Linux). A test fails if the core file gains packages. |
+| 8 | Install guide and zip | `docs/INSTALL_WINDOWS.md`, `JarvisHub-phase2.zip` | **needs hardware** (Windows) | Script names, task names and requirement files in the guide are checked by a test. The commands were not executed on Windows. |
+| 9 | Full voice agent (speaker verification, mute sync, spoken replies on the PC) | `jarvis/voice/agent.py`, `speaker.py`, `enroll.py`, `scripts/install_voice_agent.ps1`, `enroll_voice.ps1` | **needs hardware** | Fake-engine unit tests and a localhost protocol test, as before. Now shares the single-listener lock and publishes a `speaking` state for the orbs. SpeechBrain/Resemblyzer never loaded; nobody has enrolled. |
+| 10 | Grok, Range streaming, transfers, tokens, thin clients | unchanged | as in the earlier phase 2 notes | Mocked HTTP only for Grok; no real TV or laptop/Echo/Fire client was used. |
 
-The hub process remains **stdlib-only**. Voice extras live in
-`requirements-voice.txt` and are imported lazily.
+Also fixed while running the real engines: faster-whisper on a CPU got the GPU
+compute type `int8_float16` (so every CPU config looked "unavailable"), and its
+temp-WAV path broke on a newer PyAV. STT now sends a float32 array and drops to
+CPU if the CUDA runtime DLLs are missing. The hub-side `/api/tts` and
+`install_service.ps1` prefer the project `.venv` Python so Piper can load.
+
+The hub process remains **stdlib-only**. A test imports the hub, talkback, TV
+and listener modules with every optional package blocked.
 
 ### Hardware test checklist (Hub PC and TV)
 
-Do these on the Windows Hub PC and the QN75QN800D after unzip / git
-pull to `C:\JarvisHub`:
+Do these on the Windows Hub PC and the QN75QN800DFXZA after following
+[INSTALL_WINDOWS.md](INSTALL_WINDOWS.md):
 
-1. Hub still starts with no voice extras: `.\scripts\run.ps1`, then
-   `http://127.0.0.1:8765/api/health`.
-2. Install the voice agent in a **logged-on** session:
-   `.\scripts\install_voice_agent.ps1`. Confirm the boot task
-   `JarvisHub` is unchanged and the new task is `JarvisHubVoice` **At
-   logon**, not Session 0.
-3. `python -m jarvis.voice --list-devices` sees the mic and speakers.
-   Set `voice.input_device` / `output_device` if the defaults are wrong.
-4. Enroll Patrick's voice: `.\scripts\enroll_voice.ps1` (three clips).
-   Confirm `data/voice/enrollments/profile.json` is written.
-5. Say **“hey jarvis”** then a command. Confirm a reply is spoken on
-   the PC speakers, the phone and `/tv` pages show the same reply, and
-   a second speaker is rejected (or note the threshold).
-6. Mute from the phone dashboard; confirm the agent stops listening.
-   Unmute.
-7. With `XAI_API_KEY` set, ask something the local specialists do not
-   handle; confirm a Grok reply. Unset the key and confirm local
-   fallback still works.
-8. Play a library title. Confirm a stream URL is issued. Point
-   `tv.controller` at samsung-tv-root when that project is installed
-   and confirm the file actually starts on the TV. Until then,
-   `would_play` is expected.
-9. Upload a short video or photo from the phone Library tab; open it
-   from the TV Incoming files row.
-10. Open `/laptop`, the Echo Show Silk bookmark, and Fire TV `/fire`.
-11. On the TV Internet app, open
-    `http://<hub-ip>:8765/tv/mic-probe`, run the probe, then check
-    `GET /api/health` → `mic_probe`. If `live_audio` is false, keep
-    treating the TV as display-only.
+1. `Invoke-RestMethod http://localhost:8765/api/health` works with the
+   `JarvisHub` task running, and `(Invoke-RestMethod http://localhost:8765/api/status).tts`
+   shows `piper_package` and `piper_voice_present` as `True`.
+2. `Invoke-WebRequest ".../api/tts?text=hello" -OutFile x.wav`, play it. Confirm
+   a natural Piper voice, then temporarily rename `data\voices` and confirm the
+   SAPI voice answers instead (`X-Jarvis-TTS-Engine` header).
+3. `.\.venv\Scripts\python.exe scripts\wakeword.py --list-devices` shows the
+   microphone. `run_wakeword.ps1 -Foreground --dry-run`: say "hey jarvis, what
+   time is it" and see the transcript. Tune `--threshold` (0.5 default) and
+   `voice.input_device` if it misses or false-triggers. Confirm the GPU is used
+   or the log says it fell back to CPU.
+4. Without `--dry-run`, the same phrase produces a reply on the phone and `/tv`.
+5. `install_wakeword_startup.ps1`, log off and on, confirm `Jarvis Wakeword.lnk`
+   starts it (`logs\wakeword.log`) and the listener hears you with no console
+   open. Confirm running the voice agent too is refused (exit message about the
+   other listener).
+6. Mute from the phone dashboard; the listener stops reacting. Unmute.
+7. Phone: tap **Talkback**, send a command, hear the reply; the orange orb
+   moves. Over HTTPS (or `localhost`) tap **Mic orb**; the blue orb moves when
+   you talk. On `/tv` check the focus ring reaches the orb buttons and the
+   orange orb moves with talkback.
+8. `http://<hub-ip>:8765/tv/mic-probe` on the TV, run it, then read `mic_probe`
+   from `/api/health`. If `live_audio` is false keep treating the TV as
+   display-only, and decide whether a packaged-app test is worth doing.
+9. TV: enable **Power On with Mobile** and **IP Remote**, set `tv.ip`, `tv.mac`,
+   `tv.controller`, run `python -m jarvis.tv.samsung --pair`, then `--off`,
+   `--on` (from standby, on Ethernet and, if you care, Wi-Fi), `--input next`,
+   `--input source`. Record what `KEY_HDMI` and `KEY_SOURCE` do on this firmware
+   and whether `hdmi1`..`hdmi4` do anything.
+10. Optional full voice agent: `enroll_voice.ps1`, `install_voice_agent.ps1`,
+    confirm a second speaker is rejected.
+11. With `XAI_API_KEY` set, ask something the local specialists do not handle.
+12. Upload a short video or photo from the phone; open it from the TV Incoming
+    row; open `/laptop`, the Echo Show bookmark, and Fire TV `/fire`.
 
-## Phase 3 scope (design only — no phase 3 code in this tree)
+## Phase 3 scope (design only, except the stubs noted)
 
-Local, no-root Samsung TV control for the QN75QN800DFXZA (power on/off
-and HDMI / named inputs) using the samsungtvws WebSocket remote, plus
-the companions now noted in [PHASE3_DESIGN.md](PHASE3_DESIGN.md):
+Details in [PHASE3_DESIGN.md](PHASE3_DESIGN.md). Already started in phase 2 as
+stubs: samsungtvws power off / Wake-on-LAN power on / `KEY_HDMI` and
+`KEY_SOURCE` input (see [TV_CONTROL.md](TV_CONTROL.md)), and single-device orbs.
+Still to do:
 
-- Dual-orb TV overlay (blue listen / orange talkback), listener
-  breadcrumb, and nearest-node mic handoff.
-- Nighttime Reolink SD-card person detection (10 PM–6 AM, America/New_York).
-- A later household security-scanning / hardening pass.
-- Wake-on-LAN for power-on; `KEY_HDMI` / `KEY_SOURCE` input strategy.
-
-Do **not** implement samsungtvws, power, or HDMI in phase 2.
-
-### Phase 3 milestones
-
-1. Optional package, config, pairing, token file, REST status.
-2. Power off and WoL power on.
-3. HDMI / named-input switching, calibrated on the QN75QN800D.
-4. `TvSpecialist` (on/off, input, volume/mute) in the existing router.
-5. Compose with the phase 2 playback hook (wake, then play).
-6. Record what this firmware actually accepted for discrete HDMI keys.
-7. Dual-orb UI + mic-node handoff.
-8. Nighttime Reolink person detection.
-9. Security scanning / hardening report.
+- Named-input switching on the QN75QN800D (calibrate the `KEY_HDMI` cycle).
+- `TvSpecialist` so "turn on the TV" and "switch to HDMI 2" work by voice.
+- Multi-node orb UI: active-node breadcrumb and nearest-mic handoff.
+- Nighttime Reolink SD-card person detection (10 PM-6 AM, America/New_York).
+- A household security-scanning / hardening pass.
+- Compose power-on with the playback hook (wake, then play).
 
 ## Explicitly out of scope (still)
 
@@ -143,9 +143,20 @@ Do **not** implement samsungtvws, power, or HDMI in phase 2.
 - Running the scheduled task as SYSTEM may be unable to read a movie
   library that lives in a user profile or on a drive that is not mounted
   until logon. Prefer the library owner's account in that case.
-- The voice agent **cannot** run inside the boot (Session 0) service.
-  It needs an interactive logon (or autologon, which is a security
-  tradeoff and is not the default).
+- Neither listener (`scripts/wakeword.py` or the voice agent) can run inside
+  the boot (Session 0) service. They need an interactive logon (or autologon,
+  which is a security tradeoff and is not the default). After a reboot the hub
+  is up immediately but "hey jarvis" works only once you have logged in.
+- First run of each model needs internet once: openWakeWord models (GitHub),
+  the faster-whisper model and Piper voice (Hugging Face). INSTALL_WINDOWS.md
+  step A7 does these up front; everything is offline afterwards.
+- The talkback orb and Talkback toggle need a tap per page load: browsers
+  block audio until a user gesture. Replies are only spoken on the device that
+  sent the command.
+- The Tizen browser over plain HTTP is not a secure context, so the TV's blue
+  orb can only follow the hub's microphone state, never the TV's own mic.
+- KEY_HDMI1..4 are unreliable on 2024 Samsung sets; the controller refuses them
+  unless `direct_hdmi_keys` is set. "Go to HDMI 2" needs phase 3 calibration.
 - Wake-word engines are not speaker ID. Until Patrick enrolls, the
   agent skips verification and will accept any voice that says “hey
   jarvis”.
