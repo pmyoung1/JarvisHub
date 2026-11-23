@@ -60,6 +60,13 @@ if (-not $RepoRoot) {
     $RepoRoot = (Resolve-Path $RepoRoot).Path
 }
 
+# Prefer the project's .venv (created by docs/INSTALL_WINDOWS.md) so the hub can
+# import piper-tts for GET /api/tts. Without one, the hub stays stdlib-only and
+# /api/tts answers 503 until a talkback engine is installed.
+if (-not $Python) {
+    $venvPython = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+    if (Test-Path $venvPython) { $Python = $venvPython }
+}
 $PythonPath = Find-Python -Hint $Python
 # Prefer pythonw.exe (no console window) when launching via the same prefix.
 $PythonW = $null

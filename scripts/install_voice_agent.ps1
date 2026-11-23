@@ -1,5 +1,9 @@
+# This is the FULL voice agent (speaker verification + spoken replies on the PC).
+# The lighter alternative is scripts\install_wakeword_startup.ps1 (wake word -> text -> hub).
+# Run only one of them; they share a lock and the second one exits.
+#
 # Requires a logged-on user session. Do not run this as the Session 0
-# JarvisHub boot task — Windows will not give that service the microphone.
+# JarvisHub boot task - Windows will not give that service the microphone.
 # Run from an elevated or normal PowerShell in Patrick's desktop session:
 #   cd C:\JarvisHub
 #   .\scripts\install_voice_agent.ps1
@@ -23,6 +27,11 @@ if (-not $Python) {
     $PythonArgsPrefix = @()
 }
 if (-not $Python) { throw "Python 3.10+ was not found. Install it from python.org and re-run." }
+
+$startupLnk = Join-Path ([Environment]::GetFolderPath("Startup")) "Jarvis Wakeword.lnk"
+if (Test-Path $startupLnk) {
+    Write-Warning "The lightweight wake-word shortcut is installed ($startupLnk). Only one microphone listener can run. Remove it with scripts\uninstall_wakeword_startup.ps1 -StopRunning, or skip this script."
+}
 
 $venv = Join-Path $RepoRoot ".venv"
 $venvPy = Join-Path $venv "Scripts\python.exe"

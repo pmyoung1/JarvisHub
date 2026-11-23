@@ -5,7 +5,7 @@
 
   After generating, set ssl.enabled to true in config.json and restart.
   You will need to trust the certificate on the phone (or accept the
-  warning). This is optional — typing, or the phone keyboard's dictation
+  warning). This is optional - typing, or the phone keyboard's dictation
   key, works over plain HTTP.
 #>
 [CmdletBinding()]

@@ -75,6 +75,10 @@ class HubClient:
         except Exception as exc:  # noqa: BLE001
             LOG.debug("voice heartbeat failed: %s", exc)
 
+    def get_voice_status(self) -> dict[str, Any]:
+        status, data = self._request("GET", "/api/voice/status", None, timeout=5)
+        return data if isinstance(data, dict) else {"ok": False, "http_status": status}
+
     def set_mute(self, muted: bool) -> dict[str, Any]:
         payload = json.dumps({"muted": bool(muted), "client_id": self.client_id}).encode("utf-8")
         status, data = self._request("POST", "/api/voice/mute", payload)

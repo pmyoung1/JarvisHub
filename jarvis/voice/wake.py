@@ -45,6 +45,12 @@ class OpenWakeWordEngine:
         self._label = model
         self.name = f"openwakeword:{model}"
 
+    def reset(self) -> None:
+        """Clear the model's rolling buffers so one utterance cannot trigger twice."""
+        reset = getattr(self._model, "reset", None)
+        if callable(reset):
+            reset()
+
     def score(self, pcm_frame: bytes) -> float:
         import numpy as np
 

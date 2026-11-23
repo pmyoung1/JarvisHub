@@ -14,8 +14,9 @@ from typing import Any, Callable, Iterator
 
 from jarvis.config import Config, load_config
 from jarvis.logging_setup import setup_logging
+from jarvis.voice.capture import VAD_CONTINUE, VAD_START, capture_command
 from jarvis.voice.client import HubClient
-from jarvis.voice.pcm import BYTES_PER_FRAME, SAMPLE_RATE, rms
+from jarvis.voice.lock import ListenerLock
 from jarvis.voice.speaker import EnrollmentStore, SpeakerEncoder, build_speaker_encoder, verify_pcm
 from jarvis.voice.stt import Transcriber, build_transcriber
 from jarvis.voice.tts import Speaker, build_speaker
@@ -23,9 +24,7 @@ from jarvis.voice.wake import WakeEngine, build_wake_engine
 
 LOG = logging.getLogger("jarvis.voice")
 
-# Simple energy VAD thresholds for 16-bit audio normalized 0..1.
-VAD_START = 0.018
-VAD_CONTINUE = 0.010
+__all__ = ["VoicePipeline", "VoiceAgent", "build_pipeline", "main", "VAD_START", "VAD_CONTINUE"]
 
 
 class VoicePipeline:
@@ -111,6 +110,7 @@ class VoicePipeline:
         if not text or self.muted:
             return
         self.speaking.set()
+        self.client.heartbeat("speaking")  # lets the dashboards light the orange orb
         try:
             self.tts.speak(text)
         except Exception as exc:  # noqa: BLE001
@@ -188,31 +188,20 @@ class VoiceAgent:
             result = p.handle_utterance(utterance, source="hub-mic")
             if result.get("error"):
                 LOG.info("Utterance dropped: %s", result["error"])
+            reset = getattr(p.wake, "reset", None)
+            if callable(reset):
+                reset()
             p.state = "listening"
             p.client.heartbeat("listening", {"last_transcript": result.get("transcript") or ""})
 
     def _capture_command(self, frames: Iterator[bytes]) -> bytes:
         p = self.pipeline
-        max_frames = max(1, int(p.command_seconds * SAMPLE_RATE * 2 / BYTES_PER_FRAME))
-        min_frames = max(1, int(p.min_command_seconds * SAMPLE_RATE * 2 / BYTES_PER_FRAME))
-        collected: list[bytes] = []
-        silent = 0
-        started = False
-        for i, frame in enumerate(frames):
-            if self._stop.is_set() or i >= max_frames:
-                break
-            collected.append(frame)
-            level = rms(frame)
-            if level >= VAD_START:
-                started = True
-                silent = 0
-            elif started and level < VAD_CONTINUE:
-                silent += 1
-                if len(collected) >= min_frames and silent >= 15:  # ~1.2 s of silence
-                    break
-            if p.speaking.is_set():
-                break
-        return b"".join(collected)
+        return capture_command(
+            frames,
+            p.command_seconds,
+            p.min_command_seconds,
+            lambda: self._stop.is_set() or p.speaking.is_set(),
+        )
 
     def _sse_loop(self) -> None:
         p = self.pipeline
@@ -271,6 +260,7 @@ def build_pipeline(cfg: Config, client: HubClient | None = None) -> VoicePipelin
         Path(voice["tts_voices_dir"]),
         str(voice.get("tts_fallback") or "sapi"),
         str(voice.get("output_device") or ""),
+        model_path=str(voice.get("tts_model_path") or ""),
     )
     return VoicePipeline(
         cfg=cfg,
@@ -301,6 +291,13 @@ def main(argv: list[str] | None = None) -> int:
     if not cfg.voice.get("enabled", True):
         LOG.info("voice.enabled is false; exiting.")
         return 0
+    lock = ListenerLock(cfg.data_dir / "voice" / "listener.lock")
+    if not lock.acquire():
+        LOG.error(
+            "Another Jarvis microphone listener (scripts/wakeword.py or a second voice agent) is already running. "
+            "Run only one: see docs/INSTALL_WINDOWS.md 'Which listener'."
+        )
+        return 3
     pipeline = build_pipeline(cfg)
     agent = VoiceAgent(pipeline)
 
